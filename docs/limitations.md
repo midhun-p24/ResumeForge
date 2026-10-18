@@ -1,10 +1,11 @@
 # Current limitations
 
-- Hosted Supabase auth/storage/pairing and the complete signed-in browser workflow require
-  project credentials and have not been live-verified. PGlite tests actual SQL with auth/storage
-  stubs; it does not verify mail, PostgREST, or the hosted Storage service.
-- Vercel auth exists, but external integration/deployment requires approval for the specific team.
-  No hosted app URL is verified yet.
+- Supabase CLI login and local/preview environment configuration are complete, but the existing
+  GitHub integration has not applied the pending migrations. The complete signed-in workflow
+  is blocked on that deployment. PGlite tests actual SQL with auth/storage stubs, not hosted services.
+- A Vercel preview builds and returns HTTP 200. Its authentication layer requires an authorized
+  bypass for companion requests. Automatic git-push deployments also require granting Vercel's
+  GitHub App access to this existing private repository. No production deployment is retained.
 - Manual profile entry and pasted reference text work. PDF/DOCX fact import and portfolio/posting
   URL extraction are not implemented; saved URLs are references only.
 - The original compatible LaTeX default is inspired by Jake's layout, not the exact preferred
@@ -28,8 +29,8 @@
 - CSP allows inline scripts/styles and eval for development compatibility. Adopt nonce-based
   production CSP before a broad release. Browser auth uses Supabase token persistence; keep
   dependencies patched and never render untrusted HTML.
-- Focus visibility and keyboard navigation exist; the sign-in dialog still needs a full focus-trap
-  and Escape audit before public accessibility certification.
+- Focus visibility, dialog focus containment/Escape handling, and mobile navigation are present.
+  A comprehensive accessibility audit is still needed before a broad public release.
 - One active task per device, one real provider. No automatic applications, provider marketplace,
   collaborative editing, or extra services are implemented.
 

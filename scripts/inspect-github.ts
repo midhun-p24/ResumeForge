@@ -51,6 +51,28 @@ if (status)
     }),
   );
 const runs = await get('/actions/runs?per_page=10');
+const checks = await get('/commits/main/check-runs');
+if (checks)
+  console.log(
+    JSON.stringify({
+      checks: checks.check_runs?.map(
+        (c: {
+          name: string;
+          status: string;
+          conclusion: string;
+          details_url: string;
+          output?: { title: string; summary: string };
+        }) => ({
+          name: c.name,
+          status: c.status,
+          conclusion: c.conclusion,
+          url: c.details_url,
+          title: c.output?.title,
+          summary: c.output?.summary?.slice(0, 1000),
+        }),
+      ),
+    }),
+  );
 if (runs)
   console.log(
     JSON.stringify({

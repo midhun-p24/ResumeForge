@@ -111,6 +111,7 @@ export default function Workspace() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
+      if (s) setShowLogin(false);
       if (!s) setData(emptyData);
     });
     return () => listener.subscription.unsubscribe();
@@ -615,7 +616,7 @@ function Login({
       if (!sent) {
         const { error } = await supabase!.auth.signInWithOtp({
           email,
-          options: { shouldCreateUser: true },
+          options: { shouldCreateUser: true, emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
         setSent(true);
@@ -656,8 +657,7 @@ function Login({
                 Supabase URL, publishable key, and server service key.
               </li>
               <li>
-                Use the email OTP template in <code>docs/deployment.md</code>, then restart the web
-                app.
+                Review email sign-in settings in <code>docs/deployment.md</code>, then restart.
               </li>
             </ol>
             <p className="muted">Personal data is saved only after authenticated setup.</p>
@@ -666,8 +666,8 @@ function Login({
           <form onSubmit={submit}>
             <p>
               {sent
-                ? 'Enter the code from your email to continue.'
-                : 'Sign in or create an account with a code sent to your email.'}
+                ? 'Check your email and follow the secure sign-in link. If your email includes a verification code, you can enter it below.'
+                : 'Sign in or create an account with a secure link sent to your email.'}
             </p>
             <Field label="Email address">
               <input
@@ -680,7 +680,7 @@ function Login({
               />
             </Field>
             {sent && (
-              <Field label="Email verification code">
+              <Field label="Verification code (if included in your email)">
                 <input
                   required
                   inputMode="numeric"
@@ -696,9 +696,9 @@ function Login({
                 {error}
               </p>
             )}
-            <button disabled={!ready || busy} className="button full">
+            <button disabled={!ready || busy || (sent && !code.trim())} className="button full">
               {busy ? <LoaderCircle size={16} className="spin" /> : null}
-              {sent ? 'Verify and sign in' : 'Send sign-in code'}
+              {sent ? 'Verify code and sign in' : 'Send sign-in email'}
               <ArrowRight size={16} />
             </button>
             {sent && (

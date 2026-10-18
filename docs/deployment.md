@@ -15,9 +15,11 @@ resources. Hosted operation is not yet verified; account configuration must be c
    choose CLI as the sole runner, link the existing project, inspect `supabase migration list`,
    and run `supabase db push --dry-run` before applying missing versions. Never reset/repair
    history just to bypass a mismatch. The migration creates RLS, RPCs, and private Storage.
-3. Enable email auth. Set the magic-link email template to display the OTP, for example:
-   `<p>Your ResumeForge sign-in code is {{ .Token }}</p>`. The app verifies codes directly;
-   it needs no auth callback route.
+3. Enable email auth and keep Supabase's default secure email-link template. The browser
+   client detects the returned session; no callback route is required. If a custom SMTP
+   provider is already configured, an OTP template can optionally show `{{ .Token }}` and
+   users can enter that code. This project's Free/default mail service rejected template
+   customization, so ResumeForge supports standard links without an upgrade.
 4. Set Auth Site URL to the deployed origin. Allow exact development/preview/production
    redirect origins as needed. Avoid broad production wildcards. Configure SMTP before
    opening to other users; default email delivery has restrictions and limits.
@@ -39,8 +41,11 @@ Serverless functions never attempt to access the user's local agent.
 
 ## Vercel
 
-The detected team is `midoon1` on Hobby. Linking needs specific approval in this environment.
-Use the existing GitHub repository for future push builds when authorized:
+The owner approved preview deployment to team `midoon1` on Hobby. The `resumeforge` project
+exists and has preview environment values. Vercel's GitHub App could not access the private
+repository. Grant that App access to this existing repository in GitHub's Installed Apps
+settings, then connect the existing Vercel project; do not create a second repository/project.
+Direct CLI previews work independently of that optional automatic push integration.
 
 - Framework: Next.js; Root Directory: `apps/web`.
 - Enable access to files outside Root Directory for shared workspace packages.
@@ -49,9 +54,16 @@ Use the existing GitHub repository for future push builds when authorized:
 - Output Directory: default `.next` relative to `apps/web`.
 - Node: 22.x; set the intended preview/production environment values above.
 
-Create a preview first, inspect its build, and verify its actual URL. An unconfigured public
+Use `vercel deploy --target preview --scope midoon1 --yes --no-wait` explicitly: the first
+deployment of a new Vercel project can otherwise be assigned to production. An unconfigured public
 dashboard alone is not a verified personal application. Do not place secrets in CLI arguments,
 committed config, shell history, or build logs.
+
+Vercel preview authentication is separate from ResumeForge account authentication. Protected
+previews require a deployment-protection bypass credential for companion polling; do not
+silently disable protection. Use the local origin while verifying the backend, or configure
+an explicitly authorized bypass/production deployment before expecting the hosted companion
+to work. Keep any bypass credential local and outside Git.
 
 ## Hosted acceptance
 

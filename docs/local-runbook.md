@@ -2,7 +2,7 @@
 
 1. `npm ci`; copy `.env.example` to `apps/web/.env.local`; configure a dedicated Supabase
    project using the deployment guide. Keep real values ignored.
-2. `npm run dev`; open `http://localhost:3000`; sign in with an email code.
+2. `npm run dev`; open `http://localhost:3000`; sign in using the secure email link.
 3. Enter contact data and structured source records; review/approve facts. Pasted master text
    is a private reference and is never silently approved.
 4. `codex login`; install Tectonic; `npm run companion -- doctor`, then `warmup`.

@@ -1,6 +1,19 @@
 # Verification record
 
-Observed checks, not a claim of complete acceptance:
+Current results (supersede the initial baseline below): 33 unit/API/PostgreSQL tests,
+2 browser tests, lint, typecheck, production build, dependency audit, and GitHub CI pass.
+Live Codex generated a synthetic one-page PDF with verified text/order and a visually
+inspected rendering. Supabase CLI login and local/preview environment configuration are
+complete. Both migrations remain pending under the owner's chosen GitHub-managed workflow.
+
+Preview: https://resumeforge-gbqexph13-midoon1.vercel.app — Vercel Ready; homepage HTTP 200;
+unauthenticated workspace API HTTP 401. The complete authenticated hosted workflow is
+not verified while the database schema is pending. Preview protection remains enabled.
+Vercel's GitHub App still needs access to the existing private repository for push deployments.
+No production deployment is retained. Default Supabase email links are supported because
+the Free/default mail service rejected template customization without SMTP/upgrade.
+
+Initial baseline (historical, before account setup):
 
 | Check                                        | Result                                                          |
 | -------------------------------------------- | --------------------------------------------------------------- |

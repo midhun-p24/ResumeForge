@@ -58,11 +58,21 @@ async function request<T>(route: string, data: unknown, token?: string): Promise
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(process.env.RESUMEFORGE_VERCEL_BYPASS
+        ? { 'x-vercel-protection-bypass': process.env.RESUMEFORGE_VERCEL_BYPASS }
+        : {}),
     },
     body: JSON.stringify(data),
     signal: AbortSignal.timeout(30000),
     redirect: 'error',
   });
+  if (!response.headers.get('content-type')?.includes('application/json'))
+    throw new RequestFailure(
+      response.status === 401 || response.status === 403
+        ? 'HOST_PROTECTED'
+        : 'INVALID_SERVER_RESPONSE',
+      response.status,
+    );
   const json = await response.json();
   if (!response.ok) throw new RequestFailure(json.code ?? 'SERVER_ERROR', response.status);
   return json as T;
@@ -121,6 +131,7 @@ async function run() {
       if (task) await processTask(c, task);
       else await sleep(5000);
     } catch (e) {
+      if (e instanceof RequestFailure && e.code === 'HOST_PROTECTED') throw e;
       if (e instanceof RequestFailure && e.status === 401)
         throw new Error('Device revoked. Pair again to reconnect.');
       console.log(

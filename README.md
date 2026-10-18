@@ -6,7 +6,8 @@ companion runs Codex and compiles LaTeX on your computer. You find and apply to 
 
 **Status:** The application builds and runs locally. Synthetic PostgreSQL security tests and
 a live Codex-to-one-page-PDF check pass. Hosted sign-in, pairing, and private persistence still
-require a configured Supabase project. No hosted deployment is verified yet.
+require the existing Supabase GitHub integration to apply the pending migrations. A Vercel
+preview is deployed and its public shell is verified; the authenticated hosted workflow is pending.
 
 ## Start locally
 
@@ -21,7 +22,7 @@ npm run dev
 ```
 
 Open `http://localhost:3000`. Without Supabase configuration the app shows a setup state;
-private saving and generation are unavailable. Configure email OTP using the deployment
+private saving and generation are unavailable. Configure email sign-in using the deployment
 guide, sign in, add your own facts, and approve records. No personal background is preloaded.
 
 In another terminal:
@@ -40,7 +41,7 @@ Use `npm.cmd` if PowerShell blocks `npm.ps1`. Set `RESUMEFORGE_TECTONIC_PATH` or
 
 ## Implemented behavior
 
-- Supabase email OTP integration, owner-checked APIs, RLS, private Storage, and short-lived downloads.
+- Supabase email-link sign-in and optional OTP, owner-checked APIs, RLS, private Storage, and short-lived downloads.
 - Comprehensive master profile, explicit fact approval, verified metrics, preferences, and private pasted reference text.
 - Immutable job/profile snapshots, explained evidence fit, gaps, unknowns, and separate eligibility review.
 - Expiring single-use pairing, OS-vault credentials, hashes, revocation, atomic claiming, leases, retries, cancellation, and heartbeats.

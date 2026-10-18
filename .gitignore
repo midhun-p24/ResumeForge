@@ -173,3 +173,5 @@ master-profile.json
 *resume*.txt
 *credentials*
 !.env.example
+.vercel
+.env*

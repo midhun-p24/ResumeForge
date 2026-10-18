@@ -39,6 +39,11 @@ npm run companion -- run
 ```
 
 Credentials are scoped per origin, so use the same URL for pairing, running, and disconnecting.
+For a protected Vercel preview, optionally set `RESUMEFORGE_VERCEL_BYPASS` locally to an
+authorized deployment-protection bypass credential. It is sent only to the configured app
+origin and excluded from Codex/compiler environments. Never commit it. `HOST_PROTECTED`
+means Vercel blocked the request before ResumeForge authentication, not device revocation.
+The local origin avoids this extra hosting layer.
 All requests are outbound; no inbound listener is exposed. Each task runs in a fresh directory
 under `~/.resumeforge/tasks`, removed on success/failure. A crash can leave stale private files;
 delete them locally only when no task is active. Codex itself may retain local session files

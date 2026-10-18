@@ -19,6 +19,15 @@ The project's working directory, production deployment toggle, project reference
 history, and deployment logs therefore still require authenticated inspection. No migration
 has been executed through the CLI or SQL editor by this agent.
 
+After the owner completed CLI login, the authenticated project listing confirmed ResumeForge
+at `wonqmnvpmwpcmvdvxhqd`. Read-only SQL found an empty public schema; migration lists before
+and after the milestone push showed both versions pending. The owner selected GitHub-managed
+migrations, so no CLI migration push is authorized as a parallel path. A minimal root
+`supabase/config.toml` now explicitly enables migrations without seeds or remote auth overrides.
+The integration must use working directory `.`, the intended production branch `main`, and
+Deploy to production enabled. No Supabase check run has appeared in GitHub metadata so far.
+CLI configuration of exact auth redirect origins is separate from database migration deployment.
+
 [Supabase's official integration guide](https://supabase.com/docs/guides/deployment/branching/github-integration)
 documents that the working directory is the parent of `supabase/` (here `.`), the integration
 tracks applied migration versions, and production pushes run migrations only when Deploy to

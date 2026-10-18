@@ -1,0 +1,12 @@
+# The existing GitHub integration owns hosted migration deployment.
+# Working directory in Supabase must be '.'; no parallel CLI/Actions deploy job.
+project_id = "ResumeForge"
+
+[db]
+major_version = 17
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+enabled = false
