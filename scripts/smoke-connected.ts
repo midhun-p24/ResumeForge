@@ -4,6 +4,7 @@ import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { readFile, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import assert from 'node:assert/strict';
+import { z } from 'zod';
 import { fixture } from '../tests/fixtures';
 import { agentOutputSchema, taskInputSchema, validateEvidence } from '@resumeforge/contracts';
 import type { AgentOutput, WorkspaceData } from '@resumeforge/contracts';
@@ -42,10 +43,14 @@ async function auth() {
   const client = anonymous();
   const verified = await client.auth.verifyOtp({
     token_hash: generated.data.properties.hashed_token,
-    type: 'magiclink',
+    type: z
+      .enum(['signup', 'magiclink', 'email', 'invite', 'recovery', 'email_change'])
+      .parse(generated.data.properties.verification_type),
   });
   if (verified.error || !verified.data.session)
-    throw new Error('Synthetic magic-link verification failed');
+    throw new Error(
+      `Synthetic magic-link verification failed: ${verified.error?.code ?? 'session_missing'}`,
+    );
   return { token: verified.data.session.access_token, client, userId: verified.data.user!.id };
 }
 async function api<T = Record<string, unknown>>(

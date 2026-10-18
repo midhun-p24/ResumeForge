@@ -1,4 +1,6 @@
 import { readFile, writeFile, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { PDFDocument } from 'pdf-lib';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
@@ -7,7 +9,15 @@ import { renderLatex } from '@resumeforge/resume';
 import { execFile, localEnvironment } from './process';
 import { AgentFailure } from './adapter';
 
-export const tectonicPath = () => process.env.RESUMEFORGE_TECTONIC_PATH || 'tectonic';
+export const tectonicPath = () => {
+  const bundled = fileURLToPath(
+    new URL(
+      `../../../private/tools/tectonic${process.platform === 'win32' ? '.exe' : ''}`,
+      import.meta.url,
+    ),
+  );
+  return process.env.RESUMEFORGE_TECTONIC_PATH || (existsSync(bundled) ? bundled : 'tectonic');
+};
 const normalize = (s: string) =>
   s
     .normalize('NFKC')

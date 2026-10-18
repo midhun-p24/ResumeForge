@@ -275,8 +275,9 @@ async function doctor() {
     console.log('Tectonic: missing. Install Tectonic and run warmup once.');
   }
   try {
-    await entry.getPassword();
-    console.log('OS vault: available (paired)');
+    const saved = await entry.getPassword();
+    const paired = saved && credentialSchema.safeParse(JSON.parse(saved)).success;
+    console.log(paired ? 'OS vault: available (paired)' : 'OS vault: available (not paired)');
   } catch {
     console.log(
       'OS vault: no saved entry, or unavailable. Pairing requires Windows Credential Manager, macOS Keychain, or Linux Secret Service.',

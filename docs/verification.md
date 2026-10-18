@@ -5,6 +5,9 @@ Current results (supersede the initial baseline below): 33 unit/API/PostgreSQL t
 Live Codex generated a synthetic one-page PDF with verified text/order and a visually
 inspected rendering. Supabase CLI login and local/preview environment configuration are
 complete. Both migrations remain pending under the owner's chosen GitHub-managed workflow.
+Real Supabase email-token authentication passed for two temporary synthetic users, which
+were cleaned up. The connected smoke test then stopped at the first workspace read with
+`DATABASE_ERROR` because the schema is absent; no generated application was stored.
 
 Preview: https://resumeforge-gbqexph13-midoon1.vercel.app — Vercel Ready; homepage HTTP 200;
 unauthenticated workspace API HTTP 401. The complete authenticated hosted workflow is
