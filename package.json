@@ -1,0 +1,39 @@
+{
+  "name": "resumeforge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.14"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @resumeforge/web",
+    "build": "npm run build -w @resumeforge/web",
+    "start": "npm run start -w @resumeforge/web",
+    "companion": "npm run start -w @resumeforge/companion --",
+    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck -w @resumeforge/web",
+    "lint": "eslint apps packages tests scripts",
+    "test": "vitest run",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "smoke:codex": "tsx scripts/smoke-codex.ts",
+    "test:database": "tsx scripts/test-database.ts"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@eslint/js": "^9.39.0",
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "16.4.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^5.0.5"
+  }
+}
