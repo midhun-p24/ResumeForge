@@ -1,1 +1,12 @@
-{"name":"@resumeforge/resume","version":"0.1.0","private":true,"type":"module","exports":"./src/index.ts","dependencies":{"@resumeforge/contracts":"*","pdf-lib":"^1.17.1","pdfjs-dist":"^6.4.299"}}
+{
+  "name": "@resumeforge/resume",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@resumeforge/contracts": "*",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299"
+  }
+}

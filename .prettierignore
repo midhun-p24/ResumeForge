@@ -1,0 +1,10 @@
+node_modules
+.next
+.next-test
+.git
+.vercel
+private
+artifacts
+package-lock.json
+apps/web/next-env.d.ts
+test-results

@@ -1,23 +1,68 @@
 import type { AgentOutput, Profile } from '@resumeforge/contracts';
 
-export function escapeLatex(value:string):string {
-  const chars:Record<string,string>={'\\':'\\textbackslash{}','{':'\\{','}':'\\}','$':'\\$','&':'\\&','#':'\\#','%':'\\%','_':'\\_','~':'\\textasciitilde{}','^':'\\textasciicircum{}'};
-  return value.replace(/[\\{}$&#%_~^]/g,c=>chars[c]).replace(/[\x00-\x08\x0b-\x1f\x7f]/g,'');
+export function escapeLatex(value: string): string {
+  const chars: Record<string, string> = {
+    '\\': '\\textbackslash{}',
+    '{': '\\{',
+    '}': '\\}',
+    $: '\\$',
+    '&': '\\&',
+    '#': '\\#',
+    '%': '\\%',
+    _: '\\_',
+    '~': '\\textasciitilde{}',
+    '^': '\\textasciicircum{}',
+  };
+  return value.replace(/[\\{}$&#%_~^]/g, (c) => chars[c]).replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '');
 }
-export function safeFilename(name:string,company:string,role:string) {
-  return [name||'Resume',company,role].map(s=>s.normalize('NFKD').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,55)).filter(Boolean).join('_')||'ResumeForge';
+export function safeFilename(name: string, company: string, role: string) {
+  return (
+    [name || 'Resume', company, role]
+      .map((s) =>
+        s
+          .normalize('NFKD')
+          .replace(/[^a-zA-Z0-9]+/g, '_')
+          .replace(/^_|_$/g, '')
+          .slice(0, 55),
+      )
+      .filter(Boolean)
+      .join('_') || 'ResumeForge'
+  );
 }
 /** Original compatible default inspired by the single-column Jake's Resume layout.
  * No upstream template source is copied; replacement is application-controlled. */
-export function renderLatex(profile:Profile,output:AgentOutput):string {
-  const e=escapeLatex;
-  const records=new Map(profile.records.filter(r=>r.verification==='approved').map(r=>[r.id,r]));
-  const sections=output.resume.sections.map(s=>`\\section*{${e(s.title)}}\n`+s.entries.map(entry=>{
-    const r=records.get(entry.sourceId); if(!r) throw new Error('Unapproved rendering source');
-    const details=[r.organization,[r.startDate,r.endDate].filter(Boolean).join(' -- ')].filter(Boolean).join(' | ');
-    const meta=[r.kind==='publication'&&r.publicationStatus!=='not_applicable'?r.publicationStatus.replace('_',' '):'',r.kind==='education'&&profile.preferences.includeGpa&&r.gpa?`GPA: ${r.gpa}`:'',r.url].filter(Boolean).join(' | ');
-    return `\\noindent\\textbf{${e(r.title)}}\\hfill {\\small ${e(details)}}\\\\\n${meta?`{\\small ${e(meta)}}\\\\\n`:''}${entry.bullets.length?'\\begin{itemize}\n'+entry.bullets.map(b=>`\\item ${e(b.text)}`).join('\n')+'\n\\end{itemize}':''}`;
-  }).join('\n')).join('\n');
+export function renderLatex(profile: Profile, output: AgentOutput): string {
+  const e = escapeLatex;
+  const records = new Map(
+    profile.records.filter((r) => r.verification === 'approved').map((r) => [r.id, r]),
+  );
+  const sections = output.resume.sections
+    .map(
+      (s) =>
+        `\\section*{${e(s.title)}}\n` +
+        s.entries
+          .map((entry) => {
+            const r = records.get(entry.sourceId);
+            if (!r) throw new Error('Unapproved rendering source');
+            const details = [r.organization, [r.startDate, r.endDate].filter(Boolean).join(' -- ')]
+              .filter(Boolean)
+              .join(' | ');
+            const meta = [
+              r.kind === 'publication' && r.publicationStatus !== 'not_applicable'
+                ? r.publicationStatus.replace('_', ' ')
+                : '',
+              r.kind === 'education' && profile.preferences.includeGpa && r.gpa
+                ? `GPA: ${r.gpa}`
+                : '',
+              r.url,
+            ]
+              .filter(Boolean)
+              .join(' | ');
+            return `\\noindent\\textbf{${e(r.title)}}\\hfill {\\small ${e(details)}}\\\\\n${meta ? `{\\small ${e(meta)}}\\\\\n` : ''}${entry.bullets.length ? '\\begin{itemize}\n' + entry.bullets.map((b) => `\\item ${e(b.text)}`).join('\n') + '\n\\end{itemize}' : ''}`;
+          })
+          .join('\n'),
+    )
+    .join('\n');
   return `% ResumeForge compatible default v1. Original template; not the exact Jake's Resume source.\n\\documentclass[letterpaper,11pt]{article}
 \\usepackage[margin=0.6in]{geometry}
 \\usepackage[T1]{fontenc}
@@ -33,7 +78,7 @@ export function renderLatex(profile:Profile,output:AgentOutput):string {
 \\begin{document}
 \\begin{center}
 {\\LARGE\\bfseries ${e(profile.contact.name)}}\\\\[3pt]
-{\\small ${e([profile.contact.email,profile.contact.phone,profile.contact.location,...profile.contact.links].filter(Boolean).join(' | '))}}
+{\\small ${e([profile.contact.email, profile.contact.phone, profile.contact.location, ...profile.contact.links].filter(Boolean).join(' | '))}}
 \\end{center}
 ${sections}
 \\end{document}\n`;

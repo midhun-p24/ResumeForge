@@ -76,6 +76,8 @@ web_modules/
 
 # Next.js build output
 .next
+.next-test
+next-env.d.ts
 out
 
 # Nuxt.js build / generate output
@@ -165,4 +167,9 @@ credentials*.json
 *.key
 playwright-report/
 test-results/
+resume.json
+profile.json
+master-profile.json
+*resume*.txt
+*credentials*
 !.env.example

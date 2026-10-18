@@ -1,1 +1,15 @@
-{"name":"@resumeforge/companion","version":"0.1.0","private":true,"type":"module","scripts":{"start":"tsx src/index.ts"},"dependencies":{"@openai/codex-sdk":"0.163.0","@resumeforge/contracts":"*","@resumeforge/resume":"*","@napi-rs/keyring":"^1.2.0"}}
+{
+  "name": "@resumeforge/companion",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@openai/codex-sdk": "0.163.0",
+    "@resumeforge/contracts": "*",
+    "@resumeforge/resume": "*",
+    "@napi-rs/keyring": "^1.2.0"
+  }
+}
