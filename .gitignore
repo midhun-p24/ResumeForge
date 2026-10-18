@@ -175,3 +175,4 @@ master-profile.json
 !.env.example
 .vercel
 .env*
+!.env.example

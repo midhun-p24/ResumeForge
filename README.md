@@ -4,10 +4,12 @@ A private resume tailoring workspace powered by locally authenticated Codex. The
 stores approved evidence, jobs, immutable versions, and application records. An outbound-only
 companion runs Codex and compiles LaTeX on your computer. You find and apply to jobs manually.
 
-**Status:** The application builds and runs locally. Synthetic PostgreSQL security tests and
-a live Codex-to-one-page-PDF check pass. Hosted sign-in, pairing, and private persistence still
-require the existing Supabase GitHub integration to apply the pending migrations. A Vercel
-preview is deployed and its public shell is verified; the authenticated hosted workflow is pending.
+**Status:** The app builds and runs against the existing Supabase project; its GitHub integration
+has applied both migrations. Real Codex generation, one-page PDFs, revisions, private downloads,
+isolation, persistence, and revocation pass locally and through the hosted preview API. Signed-in
+browser checks also cover editing, comparison/restore, tracking, export, and disconnect.
+[Open the protected preview](https://resumeforge-3wkpfey3e-midoon1.vercel.app).
+See the [verification record](docs/verification.md) for the exact checks and remaining personal setup.
 
 ## Start locally
 
@@ -17,7 +19,7 @@ and Tectonic 0.17+. No separately billed OpenAI API key is used.
 ```powershell
 npm ci
 Copy-Item .env.example apps/web/.env.local
-# Configure Supabase values in that ignored file and apply the migration.
+# Configure Supabase values there; let the existing GitHub integration deploy migrations.
 npm run dev
 ```
 

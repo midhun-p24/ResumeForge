@@ -404,7 +404,7 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
       const input = taskInputSchema.parse({
         schemaVersion: 1,
         taskId: randomUUID(),
-        operation: 'render',
+        operation: 'revise',
         profile: parent.profile,
         job: job.data,
         instructions: '',

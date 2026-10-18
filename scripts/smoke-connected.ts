@@ -10,6 +10,8 @@ import { agentOutputSchema, taskInputSchema, validateEvidence } from '@resumefor
 import type { AgentOutput, WorkspaceData } from '@resumeforge/contracts';
 import { CodexAdapter } from '../apps/companion/src/adapter';
 import { compileResume } from '../apps/companion/src/render';
+import { testRequest } from './lib/test-http';
+import { smokeBrowser } from './lib/smoke-browser';
 
 // Explicitly synthetic live test. No emails are sent and no real account is impersonated.
 const config = Object.fromEntries(
@@ -22,6 +24,7 @@ const config = Object.fromEntries(
     }),
 );
 const url = process.env.RESUMEFORGE_TEST_URL ?? 'http://localhost:3000';
+const fixtureOutput = process.argv.includes('--fixture-output');
 const admin = createClient(config.NEXT_PUBLIC_SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
@@ -51,7 +54,12 @@ async function auth() {
     throw new Error(
       `Synthetic magic-link verification failed: ${verified.error?.code ?? 'session_missing'}`,
     );
-  return { token: verified.data.session.access_token, client, userId: verified.data.user!.id };
+  return {
+    token: verified.data.session.access_token,
+    client,
+    userId: verified.data.user!.id,
+    email,
+  };
 }
 async function api<T = Record<string, unknown>>(
   route: string,
@@ -60,16 +68,8 @@ async function api<T = Record<string, unknown>>(
   token?: string,
   expected = 200,
 ): Promise<T> {
-  const res = await fetch(`${url}/api/${route}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    redirect: 'error',
-  });
-  const data = await res.json();
+  const res = await testRequest(url, route, method, body, token);
+  const data = res.data;
   assert.equal(res.status, expected, `${route}: ${data.code ?? res.status}`);
   return data as T;
 }
@@ -82,7 +82,7 @@ try {
   // Fail before storing any profile if the schema has not been deployed.
   const initial = await api<WorkspaceData>('workspace', 'GET', undefined, a.token);
   assert.equal(initial.jobs.length, 0);
-  const { input } = fixture();
+  const { input, output: syntheticOutput } = fixture();
   await api('profile', 'PUT', input.profile, a.token);
   const { id: jobId } = await api<{ id: string }>('jobs', 'POST', input.job, a.token, 201);
   const token = `rf_${randomBytes(32).toString('base64url')}`;
@@ -137,7 +137,10 @@ try {
   await api('tasks', 'POST', taskArgs, b.token, 404);
   const adapter = new CodexAdapter();
   let lastOutput: AgentOutput | null = null;
-  async function execute(operation: 'tailor' | 'revise', versionId: string | null = null) {
+  async function execute(
+    operation: 'tailor' | 'revise' | 'render',
+    versionId: string | null = null,
+  ) {
     const locks =
       lastOutput?.resume.sections
         .flatMap((s) => s.entries.flatMap((e) => e.bullets))
@@ -181,10 +184,15 @@ try {
     };
     const timer = setInterval(() => void beat().catch(() => controller.abort()), 20000);
     try {
-      const output = await adapter.run(snapshot, workspace, controller.signal, async (s) => {
-        stage = s;
-        await beat();
-      });
+      const output =
+        operation === 'render'
+          ? snapshot.priorOutput!
+          : fixtureOutput
+            ? syntheticOutput
+            : await adapter.run(snapshot, workspace, controller.signal, async (s) => {
+                stage = s;
+                await beat();
+              });
       assert.deepEqual(validateEvidence(snapshot, output), []);
       const rendered = await compileResume(
         snapshot.profile,
@@ -225,10 +233,14 @@ try {
     }
   }
   const first = await execute('tailor');
-  console.log('Live HTTP claim, Codex, PDF upload, and idempotent completion passed.');
+  console.log(
+    `Live HTTP claim, ${fixtureOutput ? 'fixture output (no AI)' : 'Codex'}, PDF upload, and idempotent completion passed.`,
+  );
   const second = await execute('revise', first);
   assert.notEqual(first, second);
-  console.log('Live revision with locked content passed.');
+  console.log(
+    `Revision with locked content passed (${fixtureOutput ? 'fixture output, no AI' : 'live Codex'}).`,
+  );
   const state = await api<WorkspaceData>('workspace', 'GET', undefined, a.token);
   assert.equal(state.versions.length, 2);
   const other = await api<WorkspaceData>('workspace', 'GET', undefined, b.token);
@@ -268,7 +280,59 @@ try {
   assert.equal(reloaded.applications[0].resume_version_id, second);
   const direct = await b.client.from('jobs').select('id').eq('id', jobId);
   assert.equal(direct.data?.length, 0);
-  await api(`devices/${deviceId}`, 'DELETE', undefined, a.token);
+  if (process.argv.includes('--browser')) {
+    if (process.env.RESUMEFORGE_TEST_VERCEL === '1')
+      throw new Error(
+        'Browser mode uses the local app origin; protected preview API mode is separate.',
+      );
+    const link = await admin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: a.email,
+      options: { redirectTo: url },
+    });
+    if (link.error) throw new Error('Synthetic browser link setup failed');
+    await smokeBrowser(link.data.properties.action_link, workspace);
+  } else {
+    const edited = structuredClone(lastOutput!);
+    const bullet = edited.resume.sections[0].entries[0].bullets[0];
+    bullet.text = bullet.text.endsWith('.') ? bullet.text.slice(0, -1) + ';' : bullet.text + '.';
+    const manual = await api<{ id: string }>(
+      'versions',
+      'POST',
+      { parentId: second, output: edited, label: 'Synthetic manual edit' },
+      a.token,
+      201,
+    );
+    await api(
+      'versions',
+      'POST',
+      {
+        parentId: first,
+        output: state.versions.find((v) => v.id === first)!.output,
+        label: 'Synthetic restore',
+      },
+      a.token,
+      201,
+    );
+    const saved = await api<WorkspaceData>('workspace', 'GET', undefined, a.token);
+    assert.equal(saved.versions.length, 4);
+    assert.deepEqual(saved.versions.find((v) => v.id === manual.id)!.output, edited);
+    assert.equal(saved.artifacts.filter((v) => v.version_id === manual.id).length, 0);
+    console.log(
+      'Manual edit and restore saved immutable versions without changing prior artifacts.',
+    );
+    const rendered = await execute('render', manual.id);
+    const final = await api<WorkspaceData>('workspace', 'GET', undefined, a.token);
+    assert.deepEqual(final.versions.find((v) => v.id === rendered)!.output, edited);
+    assert.equal(
+      final.artifacts.filter((v) => v.version_id === rendered && v.kind === 'pdf').length,
+      1,
+    );
+    console.log(
+      'Rendering the manual edit preserved its exact content and produced a separate PDF version.',
+    );
+    await api(`devices/${deviceId}`, 'DELETE', undefined, a.token);
+  }
   await api('device/claim', 'POST', {}, token, 401);
   console.log(
     'Artifact ownership/downloads, two-user RLS, application persistence, and revocation passed.',

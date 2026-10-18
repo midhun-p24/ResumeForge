@@ -1,7 +1,8 @@
 # Deploy ResumeForge
 
-Reuse the existing `midhun-p24/ResumeForge` repository. Do not upgrade plans or provision paid
-resources. Hosted operation is not yet verified; account configuration must be completed.
+Reuse the existing `midhun-p24/ResumeForge` repository and configured Supabase/Vercel projects.
+Do not upgrade plans or provision paid resources. See the [verification record](verification.md)
+for the tested local and hosted workflows and the remaining personal setup steps.
 
 ## Supabase
 
@@ -10,7 +11,8 @@ resources. Hosted operation is not yet verified; account configuration must be c
    be the intended branch, and Deploy to production determines migration automation.
    Do not create a second project or a parallel migration deployment pipeline.
 2. Let the existing integration apply pending migrations if enabled. Check deployment logs
-   and `supabase_migrations.schema_migrations` for version `202610180001` before any CLI action.
+   and `supabase_migrations.schema_migrations` for versions `202610180001` and `202610180002`
+   before any CLI action. Both are now applied by the existing GitHub integration.
    Do not run SQL manually after automation applied it. If automation is disabled, explicitly
    choose CLI as the sole runner, link the existing project, inspect `supabase migration list`,
    and run `supabase db push --dry-run` before applying missing versions. Never reset/repair

@@ -1,34 +1,32 @@
-# Existing Supabase integration audit
+﻿# Existing Supabase integration audit
 
-The owner confirmed Supabase is connected to `midhun-p24/ResumeForge` via its GitHub integration.
-This is the intended deployment authority; no duplicate CLI migration runner is configured.
+The deployment authority is the existing Supabase GitHub integration for
+`midhun-p24/ResumeForge`, using project `wonqmnvpmwpcmvdvxhqd`.
 
-Read-only inspection at commit `53a87cf` found:
+The owner confirmed these saved settings:
 
-- Existing repository is private, default branch `main`; no alternate remote branches.
-- No pre-existing checked-in Supabase config or deployment Actions workflow.
-- GitHub's commit status, deployment, workflow-run, and repository webhook lists were empty.
-  GitHub App integrations need not appear as repository webhooks, so this does not disprove
-  the owner's connection or establish whether it already ran the migration.
-- The initial migration is already in that pushed commit. Do not alter its history/version
-  or apply its raw SQL a second time without checking the target's migration history.
-- Local Supabase CLI has no access token. The available Supabase plugin is admin-disabled,
-  and no browser session is available to inspect the dashboard's project settings.
+- Working directory: `.` (the parent of `supabase/`).
+- Production branch: `main`.
+- Deploy to production: enabled.
 
-The project's working directory, production deployment toggle, project reference, migration
-history, and deployment logs therefore still require authenticated inspection. No migration
-has been executed through the CLI or SQL editor by this agent.
+After those settings were saved, commit `9f02a21` triggered a successful Supabase check.
+Read-only CLI history reports migrations `202610180001` and `202610180002` applied remotely.
+All 13 application tables have RLS enabled and `resume-artifacts` is a private bucket.
+Connected synthetic local and hosted API acceptance checks pass against that schema.
 
-After the owner completed CLI login, the authenticated project listing confirmed ResumeForge
-at `wonqmnvpmwpcmvdvxhqd`. Read-only SQL found an empty public schema; migration lists before
-and after the milestone push showed both versions pending. The owner selected GitHub-managed
-migrations, so no CLI migration push is authorized as a parallel path. A minimal root
-`supabase/config.toml` now explicitly enables migrations without seeds or remote auth overrides.
-The integration must use working directory `.`, the intended production branch `main`, and
-Deploy to production enabled. No Supabase check run has appeared in GitHub metadata so far.
-CLI configuration of exact auth redirect origins is separate from database migration deployment.
+No migration was applied through a CLI push, SQL editor, or parallel GitHub Actions runner.
+The repository CI validates migrations in PostgreSQL but does not deploy them. The minimal
+root `supabase/config.toml` enables migrations and disables seeds without auth overrides.
+
+Before the owner saved these settings, authenticated inspection found both migrations
+pending and the public schema empty; those earlier blockers are resolved. Supabase CLI login
+is now working. The Supabase plugin remains admin-disabled, so official CLI commands were used.
+CLI configuration of exact auth redirect origins is separate from migration deployment:
+only `auth.site_url` and `auth.additional_redirect_urls` were changed after reviewing the diff;
+undeclared service settings were left unchanged.
 
 [Supabase's official integration guide](https://supabase.com/docs/guides/deployment/branching/github-integration)
-documents that the working directory is the parent of `supabase/` (here `.`), the integration
-tracks applied migration versions, and production pushes run migrations only when Deploy to
-production is enabled. CI in this repo performs validation only and does not deploy migrations.
+documents that the working directory is the parent of `supabase/`, the integration tracks
+applied migration versions, and production pushes run migrations when Deploy to production
+is enabled. Check remote history before any future change of migration runner; never apply
+already-recorded SQL a second time.

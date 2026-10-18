@@ -1,8 +1,9 @@
 # Current limitations
 
-- Supabase CLI login and local/preview environment configuration are complete, but the existing
-  GitHub integration has not applied the pending migrations. The complete signed-in workflow
-  is blocked on that deployment. PGlite tests actual SQL with auth/storage stubs, not hosted services.
+- The existing GitHub integration has applied both migrations. The live connected backend
+  workflow passes using synthetic users, real Supabase, local Codex, and Tectonic. Actual email
+  delivery and the owner's real profile still require personal review; test authentication
+  uses generated synthetic email links without sending messages.
 - A Vercel preview builds and returns HTTP 200. Its authentication layer requires an authorized
   bypass for companion requests. Automatic git-push deployments also require granting Vercel's
   GitHub App access to this existing private repository. No production deployment is retained.
