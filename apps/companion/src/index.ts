@@ -180,7 +180,14 @@ async function processTask(
     try {
       const r = await request<{ active: boolean }>(
         'device/heartbeat',
-        { taskId: task.id, leaseToken: task.leaseToken, stage, agentStatus: 'authenticated' },
+        {
+          taskId: task.id,
+          leaseToken: task.leaseToken,
+          stage,
+          agentStatus: 'authenticated',
+          companionVersion: COMPANION_VERSION,
+          capabilities: ['profile_import_v1'],
+        },
         c.token,
       );
       if (!r.active) current?.abort();

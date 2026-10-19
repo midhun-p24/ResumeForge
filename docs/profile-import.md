@@ -19,7 +19,9 @@ independently verified, and source references do not guarantee factual correctne
 Save any current profile edits before adding imported drafts. The server atomically appends to
 the latest saved profile, assigns record/metric IDs, and forces every new record to **draft**.
 Existing approved records are retained. Duplicate kind/title/organization/date identities are
-skipped; this is a conservative heuristic, not semantic deduplication. Reapplying the same import
+skipped; this is a conservative heuristic, not semantic deduplication. Matching roles or projects
+with changed date formatting are also flagged as possible duplicates in the review screen and
+left unselected by default. Distinct tenures can be selected deliberately. Reapplying an import
 does not add records twice. Review and approve the drafts individually before tailoring.
 The profile supports 150 records; a single extraction supports up to 100 proposals.
 
@@ -56,3 +58,13 @@ loopback server (default port 3205). It creates and deletes isolated synthetic a
 test-origin vault entry; it refuses to overwrite an existing vault entry. For hosted API checks,
 use `--fixture-output` with `RESUMEFORGE_TEST_URL` and keep that synthetic protocol test distinct
 from genuine local Codex execution. No test emails or real personal profiles are used.
+
+Fixture-output runs create an admin-owned synthetic device for their isolated test user instead
+of consuming public pairing capacity repeatedly. They do not claim to retest pairing. The real
+`--worker --browser` acceptance run uses actual single-use pairing and the OS vault.
+
+Local acceptance passed on 2026-10-18: actual bundled companion polling, real Codex extraction,
+heartbeats, source checks, browser review, draft-only insertion and device revocation. A separate
+fixture-output browser run verified proposal editing survives polling and mobile layout has no
+horizontal overflow. Existing tailoring, locked revisions, PDF/LaTeX/JSON downloads, editing,
+compare/restore, tracking persistence, export and disconnect also passed against the hosted backend.

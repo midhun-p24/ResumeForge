@@ -5,6 +5,8 @@ import type { ImportOutput, Profile, ProfileImportView } from '@resumeforge/cont
 import { api } from '../lib/client';
 
 type Proposal = ImportOutput['records'][number]['record'];
+const matchWithoutDates = (record: Proposal | Profile['records'][number]) =>
+  recordIdentity({ ...record, startDate: '', endDate: '' });
 export function ProfileImporter({
   rawText,
   records,
@@ -71,11 +73,11 @@ export function ProfileImporter({
         if (!active) return;
         setDetail(next);
         const proposals = next.draft?.records ?? [];
-        const seen = new Set(recordsRef.current.map(recordIdentity));
+        const seen = new Set(recordsRef.current.map(matchWithoutDates));
         setEdits(proposals.map((proposal) => proposal.record));
         setSelected(
           proposals.map(({ record }) => {
-            const key = recordIdentity(record);
+            const key = matchWithoutDates(record);
             const exists = seen.has(key);
             seen.add(key);
             return !exists;
@@ -96,6 +98,7 @@ export function ProfileImporter({
   const output = detail?.draft;
   const applied = !!(detail?.import_applied_at || item?.import_applied_at);
   const duplicates = new Set(records.map(recordIdentity));
+  const possibleDuplicates = new Set(records.map(matchWithoutDates));
   const count = edits.filter(
     (record, index) => selected[index] && !duplicates.has(recordIdentity(record)),
   ).length;
@@ -207,13 +210,20 @@ export function ProfileImporter({
             <input
               type="checkbox"
               checked={includeContact}
-              disabled={applied}
+              disabled={
+                applied ||
+                !Object.values(output.contact).some((value) =>
+                  Array.isArray(value) ? value.length : !!value,
+                )
+              }
               onChange={(event) => setIncludeContact(event.target.checked)}
             />
             Use proposed nonempty contact fields, replacing matching saved fields
           </label>
           {edits.map((record, index) => {
             const duplicate = duplicates.has(recordIdentity(record));
+            const possibleDuplicate =
+              !duplicate && possibleDuplicates.has(matchWithoutDates(record));
             return (
               <div key={index} className="import-proposal">
                 <label className="checkbox-row">
@@ -229,7 +239,11 @@ export function ProfileImporter({
                   />
                   <span>
                     {record.title} <span className="badge">{record.kind}</span>
-                    {duplicate ? ' · Already in your profile' : ''}
+                    {duplicate
+                      ? ' · Already in your profile'
+                      : possibleDuplicate
+                        ? ' · Possible duplicate: compare dates before selecting'
+                        : ''}
                   </span>
                 </label>
                 <details>

@@ -42,7 +42,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 const ok = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
-const taskFields = 'id,job_id,state,stage,error_code,created_at,input,draft';
+const taskFields = 'id,job_id,state,stage,error_code,created_at,input,draft,import_applied_at';
 const versionFields = 'id,job_id,task_id,parent_id,output,profile,render,created_at,label';
 
 async function handle(request: Request, { params }: { params: Promise<{ path: string[] }> }) {

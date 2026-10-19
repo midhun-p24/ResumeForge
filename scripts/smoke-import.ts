@@ -87,23 +87,40 @@ try {
   profile.masterText = input.rawText;
   await api('profile', 'PUT', profile, a.token);
   const deviceToken = `rf_${randomBytes(32).toString('base64url')}`;
-  const pair = await api<{ id: string; code: string; pollSecret: string }>(
-    'pairing/start',
-    'POST',
-    {
-      name: 'Synthetic import companion',
-      tokenHash: createHash('sha256').update(deviceToken).digest('hex'),
-    },
-    undefined,
-    201,
-  );
-  const { deviceId } = await api<{ deviceId: string }>(
-    'pairing/approve',
-    'POST',
-    { code: pair.code },
-    a.token,
-  );
-  await api('pairing/poll', 'POST', { id: pair.id, pollSecret: pair.pollSecret });
+  let deviceId: string;
+  if (process.argv.includes('--fixture-output')) {
+    const inserted = await admin
+      .from('agent_devices')
+      .insert({
+        user_id: a.id,
+        name: 'Synthetic fixture companion',
+        token_hash: createHash('sha256').update(deviceToken).digest('hex'),
+      })
+      .select('id')
+      .single();
+    if (inserted.error) throw new Error('Synthetic device fixture setup failed');
+    deviceId = inserted.data.id;
+    console.log('Using a synthetic device fixture; this run does not retest public pairing.');
+  } else {
+    const pair = await api<{ id: string; code: string; pollSecret: string }>(
+      'pairing/start',
+      'POST',
+      {
+        name: 'Synthetic import companion',
+        tokenHash: createHash('sha256').update(deviceToken).digest('hex'),
+      },
+      undefined,
+      201,
+    );
+    const paired = await api<{ deviceId: string }>(
+      'pairing/approve',
+      'POST',
+      { code: pair.code },
+      a.token,
+    );
+    await api('pairing/poll', 'POST', { id: pair.id, pollSecret: pair.pollSecret });
+    deviceId = paired.deviceId;
+  }
   let importId: string;
   if (process.argv.includes('--browser')) {
     browser = await chromium.launch({ headless: true });
@@ -140,11 +157,17 @@ try {
     await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Master Profile', exact: true }).click();
     await expect(page.getByLabel('Master resume text')).toHaveValue(input.rawText);
+    const enqueueResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/profile/imports' &&
+        response.request().method() === 'POST',
+    );
     await page
       .getByRole('button', { name: 'Parse master resume into records', exact: true })
       .click();
-    const rows = await api<ProfileImportView[]>('profile/imports', 'GET', undefined, a.token);
-    importId = rows[0].id;
+    const enqueued = await enqueueResponse;
+    assert.equal(enqueued.status(), 201, 'Browser import enqueue');
+    importId = (await enqueued.json()).id;
   } else {
     importId = (
       await api<{ id: string }>('profile/imports', 'POST', { rawText: input.rawText }, a.token, 201)
@@ -244,6 +267,19 @@ try {
     await expect(page.getByRole('heading', { name: /Review proposed records/ })).toBeVisible({
       timeout: 15000,
     });
+    await page.getByText('Edit proposal 1 and inspect evidence', { exact: true }).click();
+    const editedContribution = 'Designed a TypeScript task queue using PostgreSQL.';
+    await page
+      .getByRole('textbox', { name: 'Personal contributions', exact: true })
+      .fill(editedContribution);
+    await page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/profile/imports' &&
+        response.request().method() === 'GET',
+    );
+    await expect(
+      page.getByRole('textbox', { name: 'Personal contributions', exact: true }),
+    ).toHaveValue(editedContribution);
     await page.getByRole('button', { name: /Add \d+ records as drafts/ }).click();
     await expect(
       page.getByText('Imported as drafts. Review and approve each record below before tailoring.', {
@@ -251,7 +287,14 @@ try {
       }),
     ).toBeVisible();
     await page.screenshot({ path: join(workspace, 'import-review.png'), fullPage: true });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => {
+      window.scrollTo(0, 0);
+      return new Promise<void>((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => done())),
+      );
+    });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     await page.screenshot({ path: join(workspace, 'import-mobile.png'), fullPage: true });
   } else
@@ -284,6 +327,11 @@ try {
   console.log(
     'Private review, draft-only append, approved-data preservation, cross-user denial, duplicate apply and device revocation passed.',
   );
+} catch (error) {
+  const page = browser?.contexts()[0]?.pages()[0];
+  if (page)
+    await page.screenshot({ path: join(workspace, 'failure.png'), fullPage: true }).catch(() => {});
+  throw error;
 } finally {
   if (worker && !worker.killed) {
     worker.kill();
