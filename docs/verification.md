@@ -1,53 +1,52 @@
 ﻿# Verification record
 
-Verified on 2026-10-18 using synthetic inputs only. No personal resume/profile was imported.
+Verified on 2026-10-18 with synthetic profiles only. No real resume or project background was imported.
 
-| Check                                                            | Result                                                                                                                                                                                             |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lint, TypeScript, production build                               | Passed                                                                                                                                                                                             |
-| Contracts, API boundaries, actual PostgreSQL migration/functions | 33 tests passed                                                                                                                                                                                    |
-| Public desktop/mobile browser regression suite                   | 2 tests passed                                                                                                                                                                                     |
-| Existing Supabase GitHub deployment                              | Both migrations applied: `202610180001`, `202610180002`                                                                                                                                            |
-| Database isolation                                               | All 13 application tables have RLS; artifact bucket is private                                                                                                                                     |
-| Genuine local Codex and Tectonic                                 | Tailoring and locked revisions passed; one-page PDFs parse and pass text/order/overflow checks                                                                                                     |
-| Connected local backend                                          | Authentication, pairing, OS vault, claims/leases, PDF upload, idempotent completion, downloads, isolation, persistence, revocation passed                                                          |
-| Signed-in local browser                                          | Email-link session, profile/evidence display, PDF preview request, PDF/TeX/JSON download controls, bullet edit, compare/restore, tracker persistence, export, disconnect, responsive layout passed |
-| Hosted preview API                                               | Real Supabase auth, single-use pairing, genuine Codex tailoring/revision, private artifacts, two-user isolation, manual edits/restore, persistence and revocation passed                           |
-| Manual-edit rendering                                            | Exact saved content preserved; separate PDF version created without changing older versions/artifacts                                                                                              |
+Production: **https://resume-forge.midoon.dev**
 
-## Deployment boundary
+| Check                                                                     | Result                                                                                                                                        |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint, types, production build                                             | Passed                                                                                                                                        |
+| Contracts, API authorization, PostgreSQL migration/functions, quota tests | 39 tests passed                                                                                                                               |
+| Public setup desktop/mobile browser suite                                 | 2 tests passed                                                                                                                                |
+| GitHub-managed Supabase migration history                                 | 001, 002, 003 applied; no parallel CLI db push                                                                                                |
+| GitHub CI for release-security milestone ea96b97                          | Passed; repository remains private                                                                                                            |
+| Public custom-domain access                                               | HTTP 200 without Vercel cookies/account                                                                                                       |
+| Development preview protection                                            | Unauthenticated request receives Vercel auth redirect/protection                                                                              |
+| Production CSP                                                            | Per-response nonce, no unsafe-inline/unsafe-eval; browser hydration passed                                                                    |
+| Public companion download                                                 | Actual production tarball installed independently without GitHub access; doctor passed                                                        |
+| Genuine Codex production workflow                                         | Tailoring, locked revision, one-page PDF, private uploads, idempotent completion passed                                                       |
+| Signed-in production browser                                              | Profile/evidence, authorized PDF preview, PDF/TeX/JSON downloads, editing, comparison/restore, tracker persistence, export, disconnect passed |
+| Two-user ownership                                                        | Foreign jobs/artifacts/device revocation/completion denied; devices never claim the other user's queued work                                  |
+| Second synthetic user's complete protocol                                 | Independent pairing, tailoring/revision, PDFs, tracker, revocation passed with labeled fixture output, no second-user AI invocation           |
+| Same-browser account switch                                               | Second account saw only its own saved profile; late former-account responses are fenced out                                                   |
+| Manual-edit rendering                                                     | Saved content preserved exactly in a separate PDF version; old versions/artifacts unchanged                                                   |
+| Verification email                                                        | User received actual Resend message and followed it; Supabase confirmed the test account email                                                |
+| Recovery email                                                            | User confirmed receipt at the isolated test alias; normal app sign-in is passwordless                                                         |
+| Privacy and cleanup                                                       | Source/client checks passed; temporary acceptance and email accounts removed                                                                  |
 
-The existing Vercel project is Ready at:
-https://resumeforge-3wkpfey3e-midoon1.vercel.app
+## Scope and boundaries
 
-This is a **preview**, protected by Vercel authentication. The hosted API acceptance test used
-the official authenticated Vercel CLI for hosting authorization. ResumeForge user/device
-credentials were supplied over stdin, never in command-line arguments. This verifies the
-hosted application APIs; it is distinct from the signed-in browser checks against localhost.
-Exact preview and localhost email redirect origins are configured in Supabase.
+The owner approved the dashboard/sign-in design at commit 18e4457 before it was applied
+throughout the application. Public production access is separate from the private repository.
+Development previews stay protected. The exact Name.com CNAME and production auth redirects
+are configured; apex portfolio records and nameservers were preserved.
 
-The complete connected tests created two fresh synthetic accounts without sending email,
-used genuine local Codex and Tectonic, and removed their accounts and registered artifacts
-in cleanup. Browser repetitions used explicitly labeled fixture output to avoid repeated
-model usage; those fixture runs are not evidence of live AI generation. The separate live
-Codex runs are. Synthetic screenshots/PDFs stay under ignored `private/smoke/`; a generated
-PDF rendering and desktop/mobile workspace screenshots were visually inspected.
+Initial production acceptance ran with the app's email registration gate paused. The final
+release enables registration after the checks above. The gate is an app release switch,
+not a replacement for Supabase Auth's own rate limits and email confirmation.
 
-Both migrations were applied by the existing Supabase GitHub integration after commit
-`9f02a21`. No CLI/SQL-editor migration push or duplicate migration runner was used.
-GitHub Actions validate the code and SQL; they do not deploy migrations.
+Real Codex ran only for an operator-controlled synthetic test account. The second independent
+synthetic identity used explicit fixture output to test the same queue/revision/artifact
+protocol without using the owner's agent access for another identity. No claim is made that
+we signed into a second person's real Codex account or verified a second physical computer.
+SQL/API tests and hosted probes verify that public users cannot route tasks to the owner's device.
 
-## Personal setup still required
+Synthetic sign-in sessions for workflow checks used admin-generated links without email delivery.
+Actual SMTP was tested separately with the owner-provided private alias, which is not stored in Git.
+Verification confirmation was observed in Supabase; recovery email receipt was confirmed by the
+recipient. No existing user's password was changed, and no normal password-login/reset UI is claimed.
 
-- Sign in with your own email and review actual email delivery. Synthetic authentication
-  checks do not test mailbox delivery; Supabase's default email service has delivery limits.
-- Enter and approve your own profile; pair your computer from Agent & Settings and keep the
-  companion running. Tests did not pair a permanent device or create your personal profile.
-- For companion polling against the protected preview, configure an authorized local
-  `RESUMEFORGE_VERCEL_BYPASS`, as described in the companion guide, or use localhost.
-  The test-only Vercel CLI transport does not configure the normal companion.
-- To enable automatic Vercel deployments on push, grant the Vercel GitHub App access to the
-  existing private repository and connect the existing project. Direct CLI previews work.
-
-No production deployment or paid resources were provisioned. See [limitations](limitations.md)
-for the public-release hardening and deliberately deferred import features.
+Screenshots and generated PDFs are ignored under private/. The public sign-in and desktop/mobile
+workspace layouts were visually inspected. The standalone Windows companion installation is
+verified; macOS/Linux remain an explicit installation-test boundary. See limitations.md.

@@ -43,4 +43,6 @@ No paid service or overage has been enabled.
 The owner approved the isolated dashboard/sign-in proposal at milestone `18e4457`.
 The approved visual direction is now applied across the application. Production email
 redirects point to `https://resume-forge.midoon.dev`; delivery and hosted release checks are
-recorded separately after they run. The production registration gate remains closed during testing.
+recorded separately after they run. The initial production gate stayed closed during acceptance.
+All applicable checks passed; the final deployment enables public registration. Actual verification
+confirmation and recovery delivery were tested with a private temporary alias, then it was removed.

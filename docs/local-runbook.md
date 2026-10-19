@@ -7,7 +7,7 @@
    is a private reference and is never silently approved.
 4. `codex login`; install Tectonic; `npm run companion -- doctor`, then `warmup`.
 5. `npm run companion -- pair --url http://localhost:3000`; approve the code; wait for success;
-   `npm run companion -- run`.
+   `npm run companion -- run --url http://localhost:3000`.
 6. Paste/save a full posting and start tailoring. Offline tasks stay queued.
 7. Review requirements, sources, gaps, eligibility, warnings, and PDF before use.
 8. Edit/save as a new version; render it with the companion. Save edits before revisions;

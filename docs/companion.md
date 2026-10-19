@@ -1,77 +1,78 @@
-# Companion pairing and operation
+﻿# Companion installation and connection
 
-Install Node.js 22.14+, run `npm ci`, install the official Codex CLI, and run `codex login`.
-Only ChatGPT sign-in is accepted. API key variables and unrelated credentials are excluded
-from children. Codex credential files are never extracted or uploaded. Access and usage
-depend on the user's plan, workspace policy, and local model. No paid API fallback occurs.
+The public guide is https://resume-forge.midoon.dev/companion. Users do not need private
+GitHub access. Each person installs the companion on their own computer and uses their own
+supported Codex ChatGPT sign-in. There is no shared owner worker or paid API fallback.
 
-Install [Tectonic](https://tectonic-typesetting.github.io/) from an official release, add it
-to PATH (or set `RESUMEFORGE_TECTONIC_PATH`), then run:
+## Install and authenticate
 
-```powershell
-npm run companion -- doctor
-npm run companion -- warmup
-```
-
-Warmup explicitly permits initial downloads of the fixed template's packages/fonts. Normal
-compilation uses `--untrusted --only-cached --keep-logs` and `TECTONIC_UNTRUSTED_MODE=1`.
-Shell escape and package downloads are unavailable during tasks. If the cache is incomplete,
-rerun warmup. The server cannot select packages, binaries, or local paths.
-
-## Pair and run
+Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS Keychain,
+or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm run companion -- pair --url https://YOUR_APP.vercel.app
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.2.0.tgz
+resumeforge login
+resumeforge doctor
+resumeforge warmup
+resumeforge pair
+# Sign in on the website, approve the code in Agent & Settings, wait for Paired.
+resumeforge run
 ```
 
-Use the app origin only. HTTPS is mandatory except loopback HTTP. URL credentials, paths,
-query strings, and redirects are rejected. The companion generates a random token and stores
-it in Windows Credential Manager, macOS Keychain, or Linux Secret Service via `@napi-rs/keyring`.
-It fails closed without a vault; there is no plaintext fallback. Only the SHA-256 token hash
-goes to the server. The independent pairing code has 12 random characters and expires after
-10 minutes. Approve it in the authenticated app, only on a computer you control. Approval and
-single-use credential consumption are atomic. Keep pairing open until success. If the final
-network response is lost, revoke the pending device and pair again.
+Use npm.cmd/resumeforge.cmd if PowerShell blocks .ps1 files. Install Tectonic using its official
+instructions; put the executable on PATH or set RESUMEFORGE_TECTONIC_PATH to its absolute path.
+Warmup permits fixed-template package/font downloads once. Normal tasks use untrusted,
+only-cached compilation. Doctor checks the bundled Codex CLI's local sign-in, compiler, and vault.
+The supported login command invokes the bundled official CLI without a shell, including Windows.
 
-```powershell
-$env:RESUMEFORGE_URL='https://YOUR_APP.vercel.app'
-npm run companion -- run
-```
+The distribution contains only the allowlisted runtime bundle, manifest, and README; public
+npm dependencies install separately. Check the adjacent .sha256 file before installing a saved
+package. The private repository, web server source, credentials, profiles, and generated files
+are not part of that allowlist. Codex account/model access and usage depend on the user's plan.
 
-Credentials are scoped per origin, so use the same URL for pairing, running, and disconnecting.
-For a protected Vercel preview, optionally set `RESUMEFORGE_VERCEL_BYPASS` locally to an
-authorized deployment-protection bypass credential. It is sent only to the configured app
-origin and excluded from Codex/compiler environments. Never commit it. `HOST_PROTECTED`
-means Vercel blocked the request before ResumeForge authentication, not device revocation.
-The local origin avoids this extra hosting layer.
-All requests are outbound; no inbound listener is exposed. Each task runs in a fresh directory
-under `~/.resumeforge/tasks`, removed on success/failure. A crash can leave stale private files;
-delete them locally only when no task is active. Codex itself may retain local session files
-even with history persistence disabled; protect its local home directory.
+## Pairing and authorization
 
-Stages reflect real execution transitions, not private model reasoning. The structured response
-arrives before selection/writing validation stages are reported. Heartbeats renew every 20
-seconds while busy; idle polling is every 5 seconds. The UI marks heartbeats older than 65
-seconds offline. Offline tasks remain queued. Ctrl+C cancels locally; browser Cancel is observed
-on the next heartbeat. Connection loss aborts local work and lease checks reject stale completion.
+The default origin is https://resume-forge.midoon.dev. Credentials are scoped per origin.
+For development, pass --url http://localhost:3000 to both pair and run. HTTPS is required except
+loopback; URL credentials, arbitrary paths, queries, and redirects are rejected.
 
-## Disconnect and failures
+The companion proposes a random device token and stores it in the OS vault. The server sees
+only its hash. An independent code expires after 10 minutes; authenticated approval and
+credential consumption are single-use. Approve only a companion you started. Existing successful
+pairing cannot silently be overwritten; disconnect first. Pairing/active-device limits apply.
 
-Disconnect in the web app revokes authorization immediately. To revoke and remove the OS-vault
-credential, run `npm run companion -- disconnect`. If already revoked remotely, that command
-cannot authenticate; remove the ResumeForge entry for the origin in your OS credential manager
-or pair again to replace it. A retained local token remains unusable after revocation.
+All requests are outbound. A device claims only its owner's tasks, with one active lease and
+heartbeats. The companion sends complete snapshots to its own local Codex client, validates
+structured output, compiles and checks PDFs, and uploads private results. It exposes no inbound
+port. Local execution is not offline AI: the model service receives task content. Credentials
+for Codex are never uploaded to ResumeForge or inherited as API keys by task children.
 
-| Code             | Action                                                      |
-| ---------------- | ----------------------------------------------------------- |
-| AUTH_REQUIRED    | Run `codex login`; check `doctor`.                          |
-| USAGE_LIMIT      | Wait for account limits; no paid fallback is used.          |
-| MODEL_ACCESS     | Check local model availability and workspace policy.        |
-| INVALID_OUTPUT   | One repair failed; inspect any retained schema-valid draft. |
-| COMPILER_MISSING | Install Tectonic or set its local executable path.          |
-| COMPILE_FAILED   | Run warmup and check fixed-template dependencies.           |
-| TIMEOUT          | Reduce content and retry.                                   |
-| LEASE_EXHAUSTED  | Three leases expired; reconnect and start a new task.       |
+Ctrl+C cancels active local work and stops polling. Disconnect in the UI revokes the device
+immediately. Run resumeforge disconnect to revoke and remove the local credential; an already
+remotely revoked token can still be removed locally. If the network is unavailable, revoke from
+the UI when reachable and remove the origin's ResumeForge entry in the OS vault. Use a separate
+OS account on shared computers; never reuse someone else's Codex/vault sign-in.
 
-Malformed raw model text is not uploaded as approved output. A schema-valid result failing
-evidence checks may be retained privately on the failed task for review.
+For protected previews only, developers may set RESUMEFORGE_VERCEL_BYPASS locally with an
+authorized hosting bypass credential. It is excluded from Codex/compiler environments.
+Public production does not require Vercel authentication or that extra credential.
+
+## Failures
+
+| Code                      | Action                                                              |
+| ------------------------- | ------------------------------------------------------------------- |
+| AUTH_REQUIRED             | Run resumeforge login and doctor.                                   |
+| USAGE_LIMIT               | Wait for your Codex allowance; no paid fallback occurs.             |
+| MODEL_ACCESS              | Check your permitted model/workspace.                               |
+| INVALID_OUTPUT            | One repair failed; review retained schema-valid draft if available. |
+| COMPILER_MISSING          | Install Tectonic or correct its executable path.                    |
+| COMPILE_FAILED            | Check doctor/warmup and fixed-template dependencies.                |
+| TIMEOUT                   | Shorten the request and retry.                                      |
+| ALREADY_PAIRED            | Disconnect that origin before replacing pairing.                    |
+| PAIR_LIMIT / DEVICE_LIMIT | Finish pending pairing, wait for expiry, or revoke an old device.   |
+| TASK_LIMIT / QUEUE_FULL   | Finish/cancel pending work or wait for allowance renewal.           |
+| HOST_PROTECTED            | You selected a protected development preview; production is public. |
+
+Task directories under ~/.resumeforge/tasks are removed on success/failure. Crashes and Codex's
+own local session retention can leave private local files; protect your OS account and clean
+stale work only when no task is active. There is no plaintext device-credential fallback.

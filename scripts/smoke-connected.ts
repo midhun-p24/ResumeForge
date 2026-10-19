@@ -12,6 +12,7 @@ import { CodexAdapter } from '../apps/companion/src/adapter';
 import { compileResume } from '../apps/companion/src/render';
 import { testRequest } from './lib/test-http';
 import { smokeBrowser } from './lib/smoke-browser';
+import { smokeSecondUser } from './lib/smoke-second-user';
 
 // Explicitly synthetic live test. No emails are sent and no real account is impersonated.
 const config = Object.fromEntries(
@@ -280,6 +281,8 @@ try {
   assert.equal(reloaded.applications[0].resume_version_id, second);
   const direct = await b.client.from('jobs').select('id').eq('id', jobId);
   assert.equal(direct.data?.length, 0);
+  if (process.argv.includes('--two-users'))
+    await smokeSecondUser(api, workspace, b.token, a.token, token, deviceId, state.tasks[0].id);
   if (process.argv.includes('--browser')) {
     if (process.env.RESUMEFORGE_TEST_VERCEL === '1')
       throw new Error(

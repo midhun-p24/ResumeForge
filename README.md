@@ -1,81 +1,71 @@
-# ResumeForge
+﻿# ResumeForge
 
-A private resume tailoring workspace powered by locally authenticated Codex. The website
-stores approved evidence, jobs, immutable versions, and application records. An outbound-only
-companion runs Codex and compiles LaTeX on your computer. You find and apply to jobs manually.
+A public resume-tailoring application with individual private accounts, powered by each
+user's own locally authenticated Codex companion.
 
-**Status:** The app builds and runs against the existing Supabase project; its GitHub integration
-has applied both migrations. Real Codex generation, one-page PDFs, revisions, private downloads,
-isolation, persistence, and revocation pass locally and through the hosted preview API. Signed-in
-browser checks also cover editing, comparison/restore, tracking, export, and disconnect.
-[Open the protected preview](https://resumeforge-3wkpfey3e-midoon1.vercel.app).
-See the [verification record](docs/verification.md) for the exact checks and remaining personal setup.
+**Production:** https://resume-forge.midoon.dev
 
-## Start locally
+The GitHub repository remains private. Public website access does not grant repository access.
+Profiles, jobs, resume versions, application records, devices, and files are isolated by account.
+No public user's tasks run through the owner's computer or Codex account.
 
-Requirements: Node.js 22.14+, npm, a Supabase project, local Codex with ChatGPT sign-in,
-and Tectonic 0.17+. No separately billed OpenAI API key is used.
+## Use the application
+
+1. Register/sign in with your email link and build your approved master profile.
+2. Follow the [public companion guide](https://resume-forge.midoon.dev/companion).
+3. Paste a job description, start tailoring, review the evidence and PDF, and revise as needed.
+4. Download PDF/LaTeX/JSON and manually track your application and the exact version used.
+
+The companion is a public, allowlisted runtime download; private GitHub access is unnecessary:
+
+```powershell
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.2.0.tgz
+resumeforge login
+resumeforge doctor
+resumeforge warmup
+resumeforge pair
+# Approve the code in Agent & Settings, then wait for Paired.
+resumeforge run
+```
+
+Requires Node 22.14+, Tectonic 0.17+, an OS credential vault, and permitted Codex ChatGPT
+sign-in. Keep the companion running. Codex/plan limits apply; no paid API fallback is used.
+Local execution does not mean offline AI: task content is processed by the AI service.
+Only Codex is supported. Other agents are unavailable.
+
+## Develop in the existing repository
 
 ```powershell
 npm ci
-Copy-Item .env.example apps/web/.env.local
-# Configure Supabase values there; let the existing GitHub integration deploy migrations.
+# If absent, copy .env.example to apps/web/.env.local and configure the existing project.
 npm run dev
-```
-
-Open `http://localhost:3000`. Without Supabase configuration the app shows a setup state;
-private saving and generation are unavailable. Configure email sign-in using the deployment
-guide, sign in, add your own facts, and approve records. No personal background is preloaded.
-
-In another terminal:
-
-```powershell
-codex login
 npm run companion -- doctor
-npm run companion -- warmup
 npm run companion -- pair --url http://localhost:3000
-# Approve the displayed code in Agent & Settings; wait for pairing success.
-npm run companion -- run
+npm run companion -- run --url http://localhost:3000
 ```
 
-Use `npm.cmd` if PowerShell blocks `npm.ps1`. Set `RESUMEFORGE_TECTONIC_PATH` or
-`RESUMEFORGE_CODEX_PATH` locally for an alternate executable. Keep the companion running.
+Use npm.cmd/resumeforge.cmd if PowerShell blocks .ps1 launchers. Local email sign-in needs
+RESUMEFORGE_REGISTRATION_ENABLED=true after auth is configured. Keep every real value ignored.
+The existing Supabase GitHub integration is the sole migration runner; do not use a parallel
+CLI/Actions db push. Production auth redirects and environment values are configured separately.
 
-## Implemented behavior
+## Verification and privacy
 
-- Supabase email-link sign-in and optional OTP, owner-checked APIs, RLS, private Storage, and short-lived downloads.
-- Comprehensive master profile, explicit fact approval, verified metrics, preferences, and private pasted reference text.
-- Immutable job/profile snapshots, explained evidence fit, gaps, unknowns, and separate eligibility review.
-- Expiring single-use pairing, OS-vault credentials, hashes, revocation, atomic claiming, leases, retries, cancellation, and heartbeats.
-- Genuine Codex SDK adapter, complete snapshots, structured output, two-sided validation, and one bounded repair attempt.
-- Controlled LaTeX, local Tectonic, bounded shortening, PDF page/text/overflow checks, preview and PDF/TeX/JSON downloads.
-- Bullet editing, locks, include/exclude controls, revisions, immutable versions, comparison and restore-as-new-version.
-- Manual application stages, notes, dates, exact resume tracking, account export and confirmed deletion.
+`npm run check` runs lint, types, consequential contracts/API/PostgreSQL tests, the public
+companion packaging step, and the production build. `npm run test:ui` checks desktop/mobile
+forms and setup. `npm run privacy:check` checks source paths, credential patterns, known local
+keys, and available browser bundles without logging values. CI uses synthetic fixtures only.
 
-## Verify
+Live production checks include genuine Codex tailoring/revision, PDFs, pairing, private
+artifacts, browser edits/restore/downloads, tracker persistence, device revocation, and user
+isolation. A second synthetic identity exercises the same task protocol with explicit fixture
+output, not the owner's AI account. See the [verification record](docs/verification.md) for
+precise boundaries, email checks, and known limitations.
 
-```powershell
-npm run check
-npx playwright install chromium
-npm run test:ui
-# Optional: real local Codex usage, synthetic inputs only.
-npm run smoke:codex -- --pdf
-```
+Keep credentials, real profiles/resumes, local agent state, and generated applications out of
+Git. Ignored private paths and build outputs are not distribution inputs. The companion packer
+allows only its runtime bundle, generated manifest, and README; downloads have SHA-256 checksums.
 
-CI uses synthetic fixtures and no live AI credentials. PostgreSQL tests execute the actual
-migration and functions in PGlite with small auth/storage stubs; this is distinct from a
-hosted Supabase check. The web app building, running locally, and being verified as a hosted
-application are separate milestones.
-
-## Repository and data
-
-Reuse [this existing repository](https://github.com/midhun-p24/ResumeForge). Keep all real
-profiles, credentials, resumes, databases, and applications outside Git. `private/`,
-`.resumeforge/`, `.env*`, `.vercel/`, PDFs, DOCX, TeX, and common profile filenames are ignored.
-`.env.example` contains placeholders. Never replace test fixtures with real personal facts.
-Review staged files: ignore rules cannot detect personal text pasted into arbitrary code files.
-
-Read the [architecture](docs/architecture.md), [companion guide](docs/companion.md),
-[adapter contract](docs/agent-adapters.md), [local runbook](docs/local-runbook.md),
-[deployment guide](docs/deployment.md), [verification record](docs/verification.md),
-and [limitations](docs/limitations.md).
+Read the [architecture](docs/architecture.md), [deployment guide](docs/deployment.md),
+[companion guide](docs/companion.md), [local runbook](docs/local-runbook.md),
+[adapter contract](docs/agent-adapters.md), and [limitations](docs/limitations.md).

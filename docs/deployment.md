@@ -1,77 +1,91 @@
-# Deploy ResumeForge
+﻿# Deploy ResumeForge
 
-Reuse the existing `midhun-p24/ResumeForge` repository and configured Supabase/Vercel projects.
-Do not upgrade plans or provision paid resources. See the [verification record](verification.md)
-for the tested local and hosted workflows and the remaining personal setup steps.
+Production origin: `https://resume-forge.midoon.dev`. Use the existing private GitHub repository,
+Supabase project `wonqmnvpmwpcmvdvxhqd`, and Vercel `resumeforge` project under `midoon1`.
+Do not create replacement projects, change repository visibility, or enable paid services.
 
-## Supabase
+## Database and isolation
 
-1. The owner has connected Supabase to this existing GitHub repository. Inspect that project's
-   Settings → Integrations first: Working directory should be `.`, production branch should
-   be the intended branch, and Deploy to production determines migration automation.
-   Do not create a second project or a parallel migration deployment pipeline.
-2. Let the existing integration apply pending migrations if enabled. Check deployment logs
-   and `supabase_migrations.schema_migrations` for versions `202610180001` and `202610180002`
-   before any CLI action. Both are now applied by the existing GitHub integration.
-   Do not run SQL manually after automation applied it. If automation is disabled, explicitly
-   choose CLI as the sole runner, link the existing project, inspect `supabase migration list`,
-   and run `supabase db push --dry-run` before applying missing versions. Never reset/repair
-   history just to bypass a mismatch. The migration creates RLS, RPCs, and private Storage.
-3. Enable email auth and keep Supabase's default secure email-link template. The browser
-   client detects the returned session; no callback route is required. If a custom SMTP
-   provider is already configured, an OTP template can optionally show `{{ .Token }}` and
-   users can enter that code. This project's Free/default mail service rejected template
-   customization, so ResumeForge supports standard links without an upgrade.
-4. Set Auth Site URL to the deployed origin. Allow exact development/preview/production
-   redirect origins as needed. Avoid broad production wildcards. Configure SMTP before
-   opening to other users; default email delivery has restrictions and limits.
-5. Set local and Vercel environment values without committing them or pasting secrets in chat.
+The existing Supabase GitHub integration owns migrations: working directory `.`, branch `main`,
+Deploy to production enabled. Migrations 001, 002, and 003 are applied remotely. CI executes
+actual SQL against test PostgreSQL; it does not deploy migrations. Check remote history before
+any future change of runner. Never apply recorded SQL again through CLI or the SQL editor.
 
-| Variable                             | Visibility / purpose                                   |
-| ------------------------------------ | ------------------------------------------------------ |
-| NEXT_PUBLIC_SUPABASE_URL             | Browser: selected Supabase project origin              |
-| NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Browser: public authentication key                     |
-| SUPABASE_SERVICE_ROLE_KEY            | Server only: owner-checked database/Storage operations |
-| RESUMEFORGE_APP_URL                  | Server setup reference: deployed app origin            |
-| RESUMEFORGE_URL                      | Companion only: matching web app origin                |
-| RESUMEFORGE_CODEX_PATH               | Companion only, optional local executable              |
-| RESUMEFORGE_TECTONIC_PATH            | Companion only, optional local compiler                |
+All 13 application tables use RLS. Browser writes and privileged RPCs are denied. APIs verify
+user/device credentials and ownership; the service-role key is server-only. Artifacts are private
+and owner-checked download URLs expire after 60 seconds. Device claims can select only that
+device owner's tasks. No shared hosted agent or owner-computer worker exists.
 
-Never prefix the service key with `NEXT_PUBLIC_`. Public environment values are bundled at
-build time; redeploy after changing them. No Codex credentials belong in Vercel or Supabase.
-Serverless functions never attempt to access the user's local agent.
+## Domain and protection
 
-## Vercel
+The owner saved this exact Name.com record, and Vercel verified it:
 
-The owner approved preview deployment to team `midoon1` on Hobby. The `resumeforge` project
-exists and has preview environment values. Vercel's GitHub App could not access the private
-repository. Grant that App access to this existing repository in GitHub's Installed Apps
-settings, then connect the existing Vercel project; do not create a second repository/project.
-Direct CLI previews work independently of that optional automatic push integration.
+| Type  | Host         | Target                              | TTL           |
+| ----- | ------------ | ----------------------------------- | ------------- |
+| CNAME | resume-forge | 64c0a9283b795757.vercel-dns-017.com | 300 / default |
 
-- Framework: Next.js; Root Directory: `apps/web`.
-- Enable access to files outside Root Directory for shared workspace packages.
-- Install Command: `cd ../.. && npm ci`.
-- Build Command: `cd ../.. && npm run build`.
-- Output Directory: default `.next` relative to `apps/web`.
-- Node: 22.x; set the intended preview/production environment values above.
+Preserve the existing midoon.dev portfolio A records, mail records, and Name.com nameservers.
+Do not delegate the apex domain to Vercel or repoint the portfolio. The subdomain is attached
+to the existing ResumeForge project. The project's current Vercel authentication setting is
+`all_except_custom_domains`: the production custom domain is public, while generated preview
+URLs remain protected. Verify this with a fresh browser and without following auth redirects.
 
-Use `vercel deploy --target preview --scope midoon1 --yes --no-wait` explicitly: the first
-deployment of a new Vercel project can otherwise be assigned to production. An unconfigured public
-dashboard alone is not a verified personal application. Do not place secrets in CLI arguments,
-committed config, shell history, or build logs.
+## Authentication and email
 
-Vercel preview authentication is separate from ResumeForge account authentication. Protected
-previews require a deployment-protection bypass credential for companion polling; do not
-silently disable protection. Use the local origin while verifying the backend, or configure
-an explicitly authorized bypass/production deployment before expecting the hosted companion
-to work. Keep any bypass credential local and outside Git.
+Supabase Auth Site URL is `https://resume-forge.midoon.dev`. Exact additional redirects include
+that origin and `http://localhost:3000`. Remove stale previews; add only exact deliberate test
+origins when needed. Review a scoped config diff before changing auth; leave undeclared SMTP,
+MFA, database, and storage settings unchanged.
 
-## Hosted acceptance
+The owner configured Resend SMTP directly in Supabase with sender `noreply@auth.midoon.dev`.
+No SMTP password/API key belongs in the repository or Vercel browser environment. Keep paid
+email overages disabled. Verification email receipt and confirmation were tested with a
+private temporary alias; recovery email receipt was also confirmed. The application normally
+uses passwordless email links, so it does not offer a password-login/reset screen.
 
-Use two synthetic accounts to verify isolation. Sign in; approve profile records; paste a
-posting; pair using the deployed origin; confirm online Codex; queue tailoring; observe stages;
-review evidence/PDF; request a locked revision; download all formats; track the exact resume;
-refresh for persistence; revoke the device and verify claims/completion are denied. Only then
-use real personal background. Maintain backups and a housekeeping schedule for expired pairing
-rows, rate counters, and orphaned Storage objects.
+Email requests go through a gated backend route with per-IP, per-address, hourly global and
+daily global limits. Supabase's own auth limits still matter because publishable Auth APIs
+are public. Keep email confirmation enabled. CAPTCHA and stronger edge controls should be
+added as traffic grows; never claim the app-only gate replaces provider-side protections.
+
+## Environment and build
+
+| Variable                             | Purpose                                                                |
+| ------------------------------------ | ---------------------------------------------------------------------- |
+| NEXT_PUBLIC_SUPABASE_URL             | Browser/public auth project origin                                     |
+| NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Browser/public auth key                                                |
+| SUPABASE_SERVICE_ROLE_KEY            | Server-only privileged database/Storage key; Vercel sensitive variable |
+| RESUMEFORGE_APP_URL                  | Exact production email redirect origin                                 |
+| RESUMEFORGE_REGISTRATION_ENABLED     | Server release gate, true only after release checks and SMTP setup     |
+
+Set each Vercel target separately. `scripts/configure-vercel.ts --production` starts with
+registration gated; add `--open-registration` after acceptance passes. The script uses the
+normal authenticated CLI API, writes only an ignored temporary request body, and never logs
+values. Existing sensitive variables are edited without resending immutable key names.
+
+Root Directory `apps/web`; install `cd ../.. && npm ci`; build `cd ../.. && npm run build`;
+Node 22.x; default `.next` output. Root build generates the allowlisted companion tarball,
+checksum, and metadata under public/downloads before building Next.js. No private inputs,
+credentials, local compiler, or repository history are in the download. Preview deployment
+uses `--target preview`; production requires the explicit user-authorized `--prod` flag.
+
+Vercel's GitHub App still needs access to this private repository for automatic push deploys.
+Direct CLI deployments already work. Keep that optional App grant separate from website access.
+
+## Public-service limits
+
+Transactional database limits: 3 queued/running tasks, 20 tasks/hour and 50/day including
+cancelled/failed attempts, 1,000 total tasks/versions, 250 jobs, 5 active devices (50 lifetime),
+20 MiB of accounted profile/job/task/version JSON, 100 MiB of registered artifacts, and 100
+stage events/task. Account limits are conservative; export before clearing an account.
+
+Pairing allows at most 3 pending codes per source IP and 500 globally, with IP and global
+creation throttles. Poll IDs must exist and match their secret before generating per-ID rate
+keys. Ordinary forwarding headers are ignored; Vercel's platform IP header is trusted only
+when running on Vercel. Other reverse proxies need an explicit trusted-IP configuration.
+
+API read/write/device/download/export throttles supplement SQL limits. Expired pairing rows
+and old rate counters are swept during normal traffic. Production CSP uses a per-response
+nonce without unsafe-inline/unsafe-eval; development permits eval for Next.js tooling.
+
+See verification.md for two-user acceptance results and limitations.md for maintenance duties.

@@ -1,7 +1,7 @@
 # ResumeForge architecture
 
 ```text
-Browser --email OTP--> Supabase Auth
+Browser --rate-limited email request--> Next.js --> Supabase Auth
 Browser --user bearer token--> Next.js /api/* --service role--> Postgres + private Storage
 Local companion --device token, outbound HTTPS--> Next.js /api/device/*
 Local companion --> locally authenticated Codex --> validated structured output
@@ -14,6 +14,12 @@ key stays on the server. Tables have owner-scoped RLS; browser writes and privil
 are denied. Browser roles cannot select device hashes, pairing secrets, or leases. Storage
 has a private bucket and no direct browser grants. Owner-checked API routes issue artifact
 URLs valid for 60 seconds.
+
+Production is public at resume-forge.midoon.dev, with private accounts and protected development
+previews. Each user installs the public companion runtime and uses their own local Codex sign-in.
+No shared owner worker exists. Public quotas and pairing bounds are transactional; see deployment.md.
+Account switches clear client state, and late responses for a previous identity cannot repopulate it.
+Production HTML uses per-response CSP nonces without inline-script/eval exceptions.
 
 `packages/contracts` defines protocol version 1 with Zod. Tasks contain the complete immutable
 profile/posting snapshots, preferences, instructions, locks, exclusions, and prior output.
