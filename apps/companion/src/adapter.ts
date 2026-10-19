@@ -78,8 +78,14 @@ Default section order: Education, Technical Skills, Engineering and Research Exp
 Include education when approved evidence exists; omit relevant coursework and coursework records.
 Populate Technical Skills with relevant approved skill categories and their actual technologies;
 never emit an empty category label. Include multiple relevant categories, not just Languages.
-Rank experience/research and projects independently against the posting. Give the strongest entries
-all distinct relevant supported accomplishments (often 3-4 bullets when evidence warrants it),
+Rank experience/research and projects independently against the posting.
+Consider the first, second, third, and fourth most relevant experience/research records and
+the first, second, third, and fourth most relevant projects when that many approved records exist.
+Start with these ranked candidates in relevance order within each section; do not stop at one
+project. Fit them through concise, substantive bullets, then omit lower-priority content only
+when necessary for one page. The renderer fills the supplied Jake template's existing commands;
+you replace content only and cannot create a different layout or template.
+Give the strongest entries all distinct relevant supported accomplishments (often 3-4 bullets when evidence warrants it),
 then add the next most relevant record when space remains. Do not impose a fixed entry count.
 Aim for a densely populated readable single page. Avoid repeated claims, filler, and invented facts.
 Only sections with approved entries belong in the resume. Choose conventional section headings.

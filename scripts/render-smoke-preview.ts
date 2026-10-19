@@ -4,7 +4,7 @@ import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const root = resolve('private/smoke');
 for (const folder of await readdir(root)) {
-  const path = join(root, folder, 'resume.pdf');
+  const path = join(root, folder, 'Resume.pdf');
   let bytes: Buffer;
   try {
     bytes = await readFile(path);

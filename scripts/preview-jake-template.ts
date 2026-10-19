@@ -156,4 +156,4 @@ await writeFile(
   ),
 );
 await task.destroy();
-console.log(`Verified synthetic Jake review PDF: ${folder}/resume.pdf`);
+console.log(`Verified synthetic Jake review PDF: ${folder}/Resume.pdf`);

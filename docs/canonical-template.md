@@ -1,8 +1,8 @@
 # Supplied Jake template: review milestone
 
-Status: implemented and locally verified; awaiting the owner's sample approval.
-Production still uses `compatible-v1`. No template activation or deployment is included
-in this milestone. Approval is the explicit condition requested by the owner.
+Status: active in companion 0.3.4 following the owner's explicit instruction to use
+only the supplied Jake template and replace its content. `jake-v1` is the default.
+The companion writes `Resume.tex` and compiles it to `Resume.pdf` locally.
 
 `packages/resume/src/jake-template.ts` preserves the entire pre-document layout from the
 supplied `JakesResumeTemplate.tex`, with line endings normalized to LF. Its SHA-256 is
@@ -31,7 +31,7 @@ Unicode extraction is checked on the compiled PDF, rather than assumed from thos
 - Education uses the supplied education subheading structure; experience uses its two-row
   subheading; projects use its project heading; skills use its label-free small-text list.
   There is no record-location field in the current profile: that template cell stays blank.
-- One page is the target. The existing bounded shortening pass removes or shortens lower-priority
+- One page is the target. The bounded content fitting pass removes or shortens lower-priority
   unlocked content before any typography changes. Font and margins are never automatically reduced.
   Remaining overflow is reported honestly and the draft is retained.
 
@@ -56,10 +56,11 @@ for visual inspection. Outputs remain ignored under `private/template-review/jak
 Poppler is unavailable in this environment; the existing PDF.js canvas renderer provides the
 visual check. The sample passed with `ready`, one page, text verified, and no warnings.
 
-## After approval
+## Production activation
 
-Switch `DEFAULT_RESUME_TEMPLATE` to `jake-v1`, update the pending-approval test and documentation,
-increment the distributed companion version, verify live generation/revision/PDF and LaTeX
-downloads, and deploy the web and companion release together. Existing saved PDF files remain
-immutable; new generations and explicit renders use the approved canonical template. Existing
-companion installations need updating because rendering happens on each user's computer.
+The owner explicitly requested activation. New generations and explicit renders use
+`jake-v1`; existing saved PDFs remain immutable. Companion installations must update
+to 0.3.4 because rendering occurs on each user's computer. Codex ranks experience/research
+and project candidates independently, considering the first four relevant approved records
+in each group when available. The bounded fitting pass uses the compiled page to expand
+or shorten content without changing the supplied template's fonts or margins.

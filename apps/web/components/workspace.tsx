@@ -1756,7 +1756,7 @@ function ResumeWorkspace({
                   <p>
                     {artifact
                       ? 'Open a short-lived private preview.'
-                      : 'The companion renders a one-page PDF using the ResumeForge compatible LaTeX default.'}
+                      : 'The companion renders a one-page PDF using the supplied Jake’s Resume LaTeX template.'}
                   </p>
                 </div>
               )}

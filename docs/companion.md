@@ -1,5 +1,12 @@
 # Companion installation and connection
 
+## 0.3.4: supplied Jake template active
+
+The default now uses the supplied Jake source with its original layout commands,
+font settings and margins. Codex returns structured content only. The companion
+inserts escaped content into `Resume.tex`, then compiles `Resume.pdf`. Existing
+PDFs require regeneration after updating the companion.
+
 ## 0.3.3: fuller evidence and measured page fitting
 
 Tailoring now prioritizes Education, Technical Skills, Engineering and Research
@@ -33,7 +40,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.3.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.4.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

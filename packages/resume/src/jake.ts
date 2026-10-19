@@ -65,6 +65,22 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
     .filter(Boolean)
     .join(' $|$ ');
   const sections = output.resume.sections.map((section) => {
+    if (
+      section.entries.length &&
+      section.entries.every((entry) => records.get(entry.sourceId)?.kind === 'skill')
+    ) {
+      const lines = section.entries.map((entry) => {
+        const record = records.get(entry.sourceId)!;
+        if (!output.selectedSourceIds.includes(record.id))
+          throw new Error('Unselected rendering source');
+        const content = [record.technologies.join(', '), ...entry.bullets.map((b) => b.text)]
+          .filter(Boolean)
+          .join('; ');
+        return `\\textbf{${e(record.title)}}{: ${e(content)}}`;
+      });
+      // Preserve the supplied template's single-item skills list and line breaks.
+      return `\\section{${e(section.title)}}\n\\begin{itemize}[leftmargin=0.15in, label={}]\n\\small{\\item{\n${lines.join(' \\\\\n')}\n}}\n\\end{itemize}`;
+    }
     const entries = section.entries.map((entry) => {
       const record = records.get(entry.sourceId);
       if (!record || !output.selectedSourceIds.includes(record.id))

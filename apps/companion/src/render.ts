@@ -38,7 +38,7 @@ export async function compileResume(
   template?: ResumeTemplateId,
 ): Promise<{ pdf: Buffer; render: RenderStatus; pageFill: number }> {
   await onStage('Rendering PDF');
-  const source = join(workspace, 'resume.tex');
+  const source = join(workspace, 'Resume.tex');
   await writeFile(source, renderLatex(profile, output, template), { mode: 0o600 });
   let result;
   try {
@@ -72,7 +72,7 @@ export async function compileResume(
     );
   }
   if (result.code !== 0) throw new AgentFailure('COMPILE_FAILED', output);
-  const path = join(workspace, 'resume.pdf');
+  const path = join(workspace, 'Resume.pdf');
   if ((await stat(path)).size > 2097152) throw new AgentFailure('COMPILE_FAILED', output);
   const pdf = await readFile(path);
   const doc = await PDFDocument.load(pdf);
@@ -126,7 +126,7 @@ export async function compileResume(
   }
   let log = '';
   try {
-    log = await readFile(join(workspace, 'resume.log'), 'utf8');
+    log = await readFile(join(workspace, 'Resume.log'), 'utf8');
   } catch {
     /* compiler can omit logs */
   }

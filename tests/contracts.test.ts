@@ -94,7 +94,7 @@ describe('application controlled rendering', () => {
     const tex = renderLatex(input.profile, output);
     expect(tex).not.toContain('\\write18{');
     expect(tex).toContain('11pt');
-    expect(tex).toContain('margin=0.6in');
+    expect(tex).toContain('\\addtolength{\\oddsidemargin}{-0.5in}');
   });
   it('keeps dates and titles from the snapshot', () => {
     const { input, output } = fixture();

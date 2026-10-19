@@ -62,19 +62,19 @@ export default function CompanionGuide() {
           <pre>
             <code>
               npm install --global
-              https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.3.tgz
+              https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.4.tgz
             </code>
           </pre>
           <div className="button-row">
             <a
               className="button secondary"
-              href="/downloads/resumeforge-companion-0.3.3.tgz"
+              href="/downloads/resumeforge-companion-0.3.4.tgz"
               download
             >
               <ArrowDownToLine size={16} />
               Download package
             </a>
-            <a className="text-button" href="/downloads/resumeforge-companion-0.3.3.tgz.sha256">
+            <a className="text-button" href="/downloads/resumeforge-companion-0.3.4.tgz.sha256">
               SHA-256 checksum
             </a>
           </div>

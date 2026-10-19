@@ -5,20 +5,21 @@ import { validateEvidence, agentOutputSchema } from '@resumeforge/contracts';
 import { JAKE_TEMPLATE_PREAMBLE } from '../packages/resume/src/jake-template';
 import { fixture } from './fixtures';
 
-describe('supplied canonical Jake template (pending visual approval)', () => {
+describe('supplied canonical Jake template (active)', () => {
   it('preserves the complete supplied LF-normalized preamble byte for byte', () => {
     expect(createHash('sha256').update(JAKE_TEMPLATE_PREAMBLE).digest('hex')).toBe(
       '8dcdc011da653cb8db26ed7d644ae52866f701b491c8382ccb1965b8ea662461',
     );
     const { input, output } = fixture();
     const tex = renderLatex(input.profile, output, 'jake-v1');
+    expect(renderLatex(input.profile, output)).toBe(tex);
     expect(tex).toContain(JAKE_TEMPLATE_PREAMBLE);
     expect(tex).toContain('Copyright (c) 2020 Jake Gutierrez');
     expect(tex).toContain('Copyright (c) 2026 Sourabh Bajaj');
     expect(tex).not.toContain('Jake Ryan');
     expect(tex).toContain('\\resumeProjectHeading');
     expect(tex).toContain('\\textbf{25\\%}');
-    expect(DEFAULT_RESUME_TEMPLATE).toBe('compatible-v1');
+    expect(DEFAULT_RESUME_TEMPLATE).toBe('jake-v1');
   });
   it('escapes emphasized text and links without executing agent markup', () => {
     const { input, output } = fixture();

@@ -56,7 +56,9 @@ it('prints actual skill technologies and separates long headings from organizati
   record.title = 'Languages';
   record.technologies = ['TypeScript', 'C++'];
   output.resume.sections[0].entries[0].bullets = [];
-  expect(renderLatex(input.profile, output)).toContain('Languages}: TypeScript, C++');
+  expect(renderLatex(input.profile, output, 'compatible-v1')).toContain(
+    'Languages}: TypeScript, C++',
+  );
   record.kind = 'experience';
-  expect(renderLatex(input.profile, output)).toContain('Languages}\\\\\n{\\small');
+  expect(renderLatex(input.profile, output, 'compatible-v1')).toContain('Languages}\\\\\n{\\small');
 });

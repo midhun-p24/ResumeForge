@@ -18,17 +18,15 @@ preferences, instructions, exclusions, prior output, and locks. Output contains 
 evidence, gaps, eligibility, selected sources, resume sections/bullets, metrics, and warnings.
 The companion produces rendering/artifact status, not the model.
 
-The agent never returns executable LaTeX. The original compatible default in `packages/resume`
-uses a conventional single-column layout inspired by Jake's Resume; it does not contain the
-upstream source or claim to be the user's exact approved template. Replacements require
-source/license review, attribution, escaping, and fresh layout checks.
+The agent never returns executable LaTeX. The default renderer inserts escaped structured
+content into the owner's supplied Jake template. Its complete preamble, typography,
+margins, section rules and commands are preserved, with MIT attribution retained.
+The companion writes `Resume.tex` and compiles `Resume.pdf` locally. See
+[canonical template](canonical-template.md).
 
-The owner's supplied exact Jake layout now has a staged controlled renderer, literal emphasis
-spans, license notices, and a verified synthetic PDF. It awaits visual approval before activation;
-see [canonical template review](canonical-template.md). The production default above remains active.
-
-One repair turn is allowed. One separate shortening pass is allowed for overflow, preserving
-locks. A failed shortening retains the original draft. Font stays 11 pt with 0.6 in margins.
+One validation repair turn is allowed per generation call. At most two additional fitting
+turns expand sparse pages or shorten overflow, preserving locks and source exclusions.
+The fullest valid one-page candidate is retained; font size and margins are never reduced.
 
 On SDK/CLI upgrades rerun live synthetic checks, including tool restrictions. The root
 `mcp_servers={}` TOML override replaces inherited MCP transports. Adding disabled entries
