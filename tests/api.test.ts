@@ -2,8 +2,51 @@ import { describe, it, expect } from 'vitest';
 import { GET, POST } from '../apps/web/app/api/[...path]/route';
 import { localEnvironment, execFile } from '../apps/companion/src/process';
 import { classifyError } from '../apps/companion/src/adapter';
+import { clientAddress, sameOrigin } from '../apps/web/lib/server';
+import { contentSecurityPolicy } from '../apps/web/lib/security';
 
 describe('server authorization boundary', () => {
+  it('keeps public registration closed until the server release gate is enabled', async () => {
+    const previous = process.env.RESUMEFORGE_REGISTRATION_ENABLED;
+    delete process.env.RESUMEFORGE_REGISTRATION_ENABLED;
+    try {
+      const result = await POST(
+        new Request('http://localhost/api/auth/email', {
+          method: 'POST',
+          body: JSON.stringify({ email: 'synthetic@example.invalid' }),
+        }),
+        { params: Promise.resolve({ path: ['auth', 'email'] }) },
+      );
+      expect(result.status).toBe(503);
+      expect((await result.json()).code).toBe('REGISTRATION_PAUSED');
+    } finally {
+      if (previous === undefined) delete process.env.RESUMEFORGE_REGISTRATION_ENABLED;
+      else process.env.RESUMEFORGE_REGISTRATION_ENABLED = previous;
+    }
+  });
+  it('rejects a foreign browser origin before processing a write', () => {
+    expect(() =>
+      sameOrigin(
+        new Request('https://resume-forge.midoon.dev/api/tasks', {
+          headers: { origin: 'https://attacker.example' },
+        }),
+      ),
+    ).toThrow('Use ResumeForge');
+  });
+  it('ignores caller-controlled ordinary forwarding headers', () => {
+    expect(
+      clientAddress(
+        new Request('http://localhost', { headers: { 'x-forwarded-for': '203.0.113.7' } }),
+      ),
+    ).not.toBe('203.0.113.7');
+  });
+  it('uses nonce-based production scripts without inline or eval exceptions', () => {
+    const policy = contentSecurityPolicy('synthetic-nonce', false, 'https://synthetic.supabase.co');
+    expect(policy).toContain("'nonce-synthetic-nonce'");
+    expect(policy).not.toContain('unsafe-inline');
+    expect(policy).not.toContain('unsafe-eval');
+    expect(policy).toContain("object-src 'none'");
+  });
   for (const path of [
     'workspace',
     'export',

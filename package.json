@@ -12,7 +12,8 @@
   },
   "scripts": {
     "dev": "npm run dev -w @resumeforge/web",
-    "build": "npm run build -w @resumeforge/web",
+    "build": "npm run build:companion && npm run build -w @resumeforge/web",
+    "build:companion": "tsx scripts/build-companion.ts",
     "start": "npm run start -w @resumeforge/web",
     "companion": "npm run start -w @resumeforge/companion --",
     "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck -w @resumeforge/web",
@@ -22,6 +23,7 @@
     "smoke:codex": "tsx scripts/smoke-codex.ts",
     "test:database": "tsx scripts/test-database.ts",
     "test:ui": "playwright test",
+    "privacy:check": "tsx scripts/check-privacy.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -32,6 +34,7 @@
     "@types/node": "^22.18.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "esbuild": "^0.27.4",
     "eslint": "^9.39.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",

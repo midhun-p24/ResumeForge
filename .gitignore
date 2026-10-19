@@ -151,6 +151,8 @@ vite.config.ts.timestamp-*
 .turbo
 
 # ResumeForge private inputs, outputs, credentials and machine state
+.companion-build/
+apps/web/public/downloads/
 .vercel/
 .resumeforge/
 private/

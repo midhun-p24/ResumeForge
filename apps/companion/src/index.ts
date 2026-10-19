@@ -6,15 +6,16 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { agentOutputSchema, idSchema, taskInputSchema } from '@resumeforge/contracts';
 import type { AgentOutput, TaskInput } from '@resumeforge/contracts';
-import { AgentFailure, CodexAdapter } from './adapter';
+import { AgentFailure, CodexAdapter, codexCommand } from './adapter';
 import { compileResume, tectonicPath } from './render';
-import { execFile } from './process';
+import { execFile, localEnvironment } from './process';
+import { spawn } from 'node:child_process';
 
 const args = process.argv.slice(2),
   command = args[0] ?? 'help';
 const urlArg = args.indexOf('--url');
 const server = new URL(
-  urlArg >= 0 ? args[urlArg + 1] : process.env.RESUMEFORGE_URL || 'http://localhost:3000',
+  urlArg >= 0 ? args[urlArg + 1] : process.env.RESUMEFORGE_URL || 'https://resume-forge.midoon.dev',
 );
 if (
   server.username ||
@@ -83,6 +84,9 @@ async function credentials(): Promise<Credential> {
   return credentialSchema.parse(JSON.parse(saved));
 }
 async function pair() {
+  const existing = await entry.getPassword();
+  if (existing && credentialSchema.safeParse(JSON.parse(existing)).success)
+    throw new AgentFailure('ALREADY_PAIRED');
   // Keep the proposed token in the OS vault before network access; never print or write it to disk.
   const token = `rf_${randomBytes(32).toString('base64url')}`;
   await entry.setPassword(JSON.stringify({ origin, token, deviceId: null, pending: true }));
@@ -100,7 +104,7 @@ async function pair() {
     });
     if (result.status === 'approved') {
       await entry.setPassword(JSON.stringify({ origin, token, deviceId: result.deviceId }));
-      console.log('Paired. Start with: npm run companion -- run');
+      console.log(`Paired to ${origin}. Start with: resumeforge run --url ${origin}`);
       return;
     }
     await sleep(4000);
@@ -333,18 +337,36 @@ async function warmup() {
   }
 }
 try {
-  if (command === 'pair') await pair();
+  if (command === 'login') {
+    const cli = codexCommand(['login']);
+    const code = await new Promise<number>((resolve, reject) => {
+      const child = spawn(cli.file, cli.args, {
+        shell: false,
+        windowsHide: true,
+        stdio: 'inherit',
+        env: localEnvironment(),
+      });
+      child.on('error', reject);
+      child.on('exit', (status) => resolve(status ?? 1));
+    });
+    process.exitCode = code;
+  } else if (command === 'pair') await pair();
   else if (command === 'run') await run();
   else if (command === 'doctor') await doctor();
   else if (command === 'warmup') await warmup();
   else if (command === 'disconnect') {
     const c = await credentials();
-    await request('device/disconnect', {}, c.token);
+    try {
+      await request('device/disconnect', {}, c.token);
+    } catch (e) {
+      // A remotely revoked token is already unusable; still remove it locally.
+      if (!(e instanceof RequestFailure) || e.status !== 401) throw e;
+    }
     await entry.deleteCredential();
     console.log('Companion revoked and local credential removed.');
   } else
     console.log(
-      'ResumeForge companion\nCommands: doctor | pair --url <app origin> | run | disconnect | warmup\nUse RESUMEFORGE_URL to select a hosted app. Device secrets stay in the OS credential vault.',
+      'ResumeForge companion\nCommands: login | doctor | warmup | pair | run | disconnect\nDefault: https://resume-forge.midoon.dev\nUse --url or RESUMEFORGE_URL for a different origin. Device secrets stay in the OS credential vault. Each user uses their own Codex sign-in.',
     );
 } catch (e) {
   console.error(

@@ -25,8 +25,8 @@ remain protected. This replaces the earlier account-restricted deployment requir
 
 Vercel's project-specific recommendation, saved at Name.com and verified on 2026-10-18:
 
-| Type | Host | Target | TTL |
-| --- | --- | --- | --- |
+| Type  | Host           | Target                                | TTL                    |
+| ----- | -------------- | ------------------------------------- | ---------------------- |
 | CNAME | `resume-forge` | `64c0a9283b795757.vercel-dns-017.com` | 300 / provider default |
 
 The apex portfolio A records remain `216.198.79.1` and `64.29.17.1`. Name.com nameservers
@@ -34,8 +34,13 @@ remain unchanged. No apex, `www`, mail, or portfolio records were modified by th
 
 ## External setup
 
-Supabase's default sender does not support arbitrary public users. The owner is configuring
-custom SMTP directly in Supabase. Suggested sender: `noreply@auth.midoon.dev`; Resend Free
+Supabase's default sender does not support arbitrary public users. The owner confirmed custom
+Resend SMTP is configured directly in Supabase with sender `noreply@auth.midoon.dev`. Resend Free
 SMTP host `smtp.resend.com`, port 465, username `resend`, password supplied privately as its
 sending API key. DNS verification values must come from the email provider, not guesses.
 No paid service or overage has been enabled.
+
+The owner approved the isolated dashboard/sign-in proposal at milestone `18e4457`.
+The approved visual direction is now applied across the application. Production email
+redirects point to `https://resume-forge.midoon.dev`; delivery and hosted release checks are
+recorded separately after they run. The production registration gate remains closed during testing.

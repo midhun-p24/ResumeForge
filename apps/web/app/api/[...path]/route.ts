@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { PDFDocument } from 'pdf-lib';
+import { createClient } from '@supabase/supabase-js';
 import {
   agentOutputSchema,
   applicationSchema,
@@ -19,12 +20,15 @@ import {
   ApiError,
   body,
   checked,
+  clientAddress,
   db,
   deviceFor,
   hash,
   owned,
   rate,
   secret,
+  sameOrigin,
+  registrationOpen,
   userFor,
 } from '../../../lib/server';
 
@@ -41,33 +45,67 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
     const { path } = await params;
     const route = path.join('/');
     const method = request.method;
+    if (method !== 'GET') sameOrigin(request);
+    if (route === 'public/config' && method === 'GET')
+      return ok({
+        registrationOpen: registrationOpen(),
+        companionRequired: true,
+        providers: ['codex'],
+      });
+    if (route === 'auth/email' && method === 'POST') {
+      if (!registrationOpen())
+        throw new ApiError(
+          503,
+          'REGISTRATION_PAUSED',
+          'Registration is not open yet. Email sign-in is being prepared.',
+        );
+      const b = z.object({ email: z.email().max(254) }).parse(await body(request, 1000));
+      await rate(`email-ip:${clientAddress(request)}`, 8);
+      await rate(`email-address:${b.email.trim().toLowerCase()}`, 4);
+      await rate('email-global-hour', 30, 3600);
+      await rate('email-global-day', 80, 86400);
+      const auth = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        { auth: { persistSession: false, autoRefreshToken: false } },
+      );
+      const sent = await auth.auth.signInWithOtp({
+        email: b.email,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: process.env.RESUMEFORGE_APP_URL || new URL(request.url).origin,
+        },
+      });
+      if (sent.error)
+        throw new ApiError(
+          503,
+          'EMAIL_UNAVAILABLE',
+          'Email sign-in is temporarily unavailable. Please try again later.',
+        );
+      return ok({ sent: true });
+    }
     // Pairing is the only unauthenticated endpoint; secrets are never sent in URLs.
     if (route === 'pairing/start' && method === 'POST') {
       const b = z
         .object({ name: z.string().min(1).max(80), tokenHash: z.string().regex(/^[a-f0-9]{64}$/) })
         .parse(await body(request, 2000));
-      const ip =
-        request.headers.get('x-vercel-forwarded-for') ??
-        request.headers.get('x-forwarded-for') ??
-        'local';
-      await rate(`pair:${ip}`, 12);
+      const ip = clientAddress(request);
+      await rate(`pair:${ip}`, 6);
+      await rate('pair-global', 240, 3600);
       const code = secret()
           .replace(/[^A-Z0-9]/gi, '')
           .slice(0, 12)
           .toUpperCase(),
         pollSecret = secret();
       const row = checked(
-        await db()
-          .from('pairing_requests')
-          .insert({
-            name: b.name,
-            token_hash: b.tokenHash,
-            code_hash: hash(code),
-            poll_hash: hash(pollSecret),
-          })
-          .select('id,expires_at')
-          .single(),
-      );
+        await db().rpc('rf_start_pair', {
+          p_requester: hash(ip),
+          p_name: b.name,
+          p_token: b.tokenHash,
+          p_code: hash(code),
+          p_poll: hash(pollSecret),
+        }),
+      ) as { id: string; expires_at: string };
       return ok(
         {
           id: row.id,
@@ -82,6 +120,21 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
       const b = z
         .object({ id: idSchema, pollSecret: z.string().min(40).max(60) })
         .parse(await body(request, 2000));
+      await rate(`poll-ip:${clientAddress(request)}`, 180, 60);
+      const pair = checked(
+        await db()
+          .from('pairing_requests')
+          .select('id')
+          .eq('id', b.id)
+          .eq('poll_hash', hash(b.pollSecret))
+          .maybeSingle(),
+      );
+      if (!pair)
+        throw new ApiError(
+          409,
+          'PAIR_INVALID',
+          'Pairing expired or is invalid. Start pairing again.',
+        );
       await rate(`poll:${b.id}`, 160);
       return ok(
         checked(await db().rpc('rf_consume_pair', { p_id: b.id, p_poll_hash: hash(b.pollSecret) })),
@@ -89,6 +142,8 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
     }
     if (path[0] === 'device') {
       const d = await deviceFor(request);
+      await rate(`device:${d.id}`, 120, 60);
+      if (path[3] === 'complete') await rate(`complete:${d.id}`, 10, 60);
       if (route === 'device/claim' && method === 'POST')
         return ok({ task: checked(await db().rpc('rf_claim', { p_device: d.id })) });
       if (route === 'device/disconnect' && method === 'POST') {
@@ -247,6 +302,11 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
       throw new ApiError(404, 'NOT_FOUND', 'Endpoint not found.');
     }
     const u = await userFor(request);
+    await rate(`user:${u.id}`, 180, 60);
+    if (method !== 'GET') await rate(`write:${u.id}`, 40, 60);
+    if (route === 'workspace') await rate(`workspace:${u.id}`, 60, 60);
+    if (route === 'export') await rate(`export:${u.id}`, 3, 600);
+    if (path[0] === 'artifacts') await rate(`download:${u.id}`, 60, 60);
     if (route === 'workspace' && method === 'GET') {
       const tables = [
         ['profiles', 'data'],
@@ -288,11 +348,13 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
       });
     }
     if (route === 'profile' && method === 'PUT') {
+      await rate(`profile:${u.id}`, 10, 60);
       const p = profileSchema.parse(await body(request, 500000));
       checked(await db().rpc('rf_save_profile', { p_user: u.id, p_data: p }));
       return ok({ saved: true });
     }
     if (route === 'jobs' && method === 'POST') {
+      await rate(`jobs:${u.id}`, 30, 3600);
       const j = jobSchema.parse(await body(request, 100000));
       const id = checked(await db().rpc('rf_save_job', { p_user: u.id, p_data: j }));
       return ok({ id }, 201);
@@ -392,6 +454,7 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
       );
     }
     if (route === 'versions' && method === 'POST') {
+      await rate(`versions:${u.id}`, 60, 3600);
       const b = z
         .object({
           parentId: idSchema,

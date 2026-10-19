@@ -13,7 +13,6 @@ import {
   Clock3,
   FileText,
   Flame,
-  FolderOpen,
   LayoutDashboard,
   Link2,
   LoaderCircle,
@@ -44,6 +43,8 @@ import type {
 } from '@resumeforge/contracts';
 import { renderLatex, safeFilename } from '@resumeforge/resume';
 import { api, download, supabase } from '../lib/client';
+import { Dashboard } from './dashboard';
+import { PublicHome } from './public-home';
 
 type Area =
   | 'Dashboard'
@@ -86,6 +87,7 @@ const failureHelp: Record<string, string> = {
 };
 
 export default function Workspace() {
+  const account = useRef<string|null>(null);
   const [session, setSession] = useState<Session | null>(null),
     [authReady, setAuthReady] = useState(false),
     [area, setArea] = useState<Area>('Dashboard'),
@@ -97,24 +99,33 @@ export default function Workspace() {
     [menu, setMenu] = useState(false),
     [showLogin, setShowLogin] = useState(false);
   const refresh = useCallback(async () => {
+    const expected=account.current;
     const next = await api<WorkspaceData>('workspace');
-    setData(next);
+    // A late response from a signed-out/switched account must never reappear.
+    if(expected && account.current===expected) setData(next);
   }, []);
   useEffect(() => {
     if (!supabase) {
       setAuthReady(true);
       return;
     }
+    let events=0,alive=true;
+    const apply=(s:Session|null)=>{
+      const id=s?.user.id??null;
+      if(account.current!==id){setData(emptyData);setSelectedJob('');setError('');setMessage('');}
+      account.current=id;
+      setSession(s);setAuthReady(true);
+    };
     void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setAuthReady(true);
+      if(alive&&events===0) apply(data.session);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
+      events++;
+      apply(s);
       if (s) setShowLogin(false);
       if (!s) setData(emptyData);
     });
-    return () => listener.subscription.unsubscribe();
+    return () => {alive=false;listener.subscription.unsubscribe();};
   }, []);
   useEffect(() => {
     if (!session) return;
@@ -154,8 +165,19 @@ export default function Workspace() {
     setSelectedJob(id);
     go('Resume Workspace');
   };
-  const connected = data.devices.some(online);
+  const connected = data.devices.some((d) => online(d) && d.agent_status === 'authenticated');
   const approved = data.profile.records.filter((r) => r.verification === 'approved').length;
+  if (authReady && supabase && !session)
+    return (
+      <PublicHome>
+        <Login
+          inline
+          ready={authReady}
+          close={() => setShowLogin(false)}
+          onSuccess={() => setShowLogin(false)}
+        />
+      </PublicHome>
+    );
   return (
     <div className="app-shell" data-ready={authReady} inert={!authReady}>
       <a className="skip-link" href="#main">
@@ -304,209 +326,13 @@ export default function Workspace() {
             </div>
           )}
           {area === 'Dashboard' && (
-            <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">A LITTLE MORE YOU. A LITTLE MORE RELEVANT.</div>
-                  <h1>
-                    Your next chapter starts here<span>.</span>
-                  </h1>
-                  <p>Turn everything you’ve done into a resume that belongs in the conversation.</p>
-                </div>
-                <button className="button" onClick={() => go('New Job')}>
-                  <Plus size={17} />
-                  Tailor a resume
-                </button>
-              </div>
-              <section className="hero-card">
-                <div className="hero-content">
-                  <span className="hero-label">
-                    <Sparkles size={15} />
-                    YOUR EXPERIENCE. PRECISELY TOLD.
-                  </span>
-                  <h2>
-                    A stronger story.
-                    <br />
-                    For the right opportunity.
-                  </h2>
-                  <p>
-                    One verified master profile. A resume shaped for each role.
-                    <br className="desktop-break" /> Always grounded in what you’ve actually done.
-                  </p>
-                  <button
-                    className="button light"
-                    onClick={() => go(approved ? 'New Job' : 'Master Profile')}
-                  >
-                    {approved ? 'Find your next fit' : 'Build your master profile'}
-                    <ArrowRight size={17} />
-                  </button>
-                  <div className="hero-foot">
-                    <ShieldCheck size={14} />
-                    Your facts stay yours. Your agent does the tailoring.
-                  </div>
-                </div>
-                <div className="hero-art" aria-hidden="true">
-                  <div className="paper-back" />
-                  <div className="paper">
-                    <span className="paper-logo">
-                      <Flame size={17} />
-                    </span>
-                    <div className="paper-name" />
-                    <div className="paper-contact" />
-                    <div className="paper-rule" />
-                    {[0, 1, 2].map((n) => (
-                      <div className="paper-section" key={n}>
-                        <div className="paper-subhead" />
-                        <div className="paper-line long" />
-                        <div className="paper-line" />
-                        <div className="paper-line medium" />
-                      </div>
-                    ))}
-                    <span className="paper-check">
-                      <Check size={20} />
-                    </span>
-                  </div>
-                  <div className="art-caption">
-                    <span className="status-dot online" />
-                    Built from your verified experience
-                  </div>
-                </div>
-              </section>
-              <div className="stats-grid">
-                {[
-                  {
-                    label: 'Verified profile records',
-                    value: approved,
-                    icon: BookOpen,
-                    caption: `${data.profile.records.length - approved} awaiting your review`,
-                  },
-                  {
-                    label: 'Opportunities saved',
-                    value: data.jobs.length,
-                    icon: BriefcaseBusiness,
-                    caption: 'A considered next step',
-                  },
-                  {
-                    label: 'Resume versions',
-                    value: data.versions.length,
-                    icon: FileText,
-                    caption: 'Every version, preserved',
-                  },
-                  {
-                    label: 'Applications submitted',
-                    value: data.applications.filter((a) =>
-                      ['Applied', 'Interviewing', 'Offer', 'Rejected'].includes(a.stage),
-                    ).length,
-                    icon: ArrowRight,
-                    caption: 'Updated manually by you',
-                  },
-                ].map((s) => (
-                  <div className="stat-card" key={s.label}>
-                    <div>
-                      <span>{s.label}</span>
-                      <s.icon size={17} />
-                    </div>
-                    <strong>{s.value}</strong>
-                    <small>{s.caption}</small>
-                  </div>
-                ))}
-              </div>
-              <div className="dashboard-lower">
-                <section className="panel opportunities">
-                  <div className="section-heading">
-                    <div>
-                      <h2>Recent opportunities</h2>
-                      <p>A focused workspace for every role.</p>
-                    </div>
-                    <button className="text-button" onClick={() => go('Applications')}>
-                      View all
-                      <ArrowRight size={15} />
-                    </button>
-                  </div>
-                  {data.jobs.length ? (
-                    <div className="job-list">
-                      {data.jobs.slice(0, 5).map((j) => {
-                        const a = data.applications.find((a) => a.job_id === j.id);
-                        return (
-                          <button className="job-row" key={j.id} onClick={() => openJob(j.id)}>
-                            <span className="company-tile">
-                              {j.data.company.slice(0, 2).toUpperCase()}
-                            </span>
-                            <span>
-                              <strong>{j.data.title}</strong>
-                              <small>
-                                {j.data.company} · {j.data.location || 'Location unspecified'}
-                              </small>
-                            </span>
-                            <span className="badge">{a?.stage ?? 'Saved'}</span>
-                            <ChevronRight size={16} />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="empty-state">
-                      <span className="empty-icon">
-                        <FolderOpen size={29} />
-                      </span>
-                      <h3>Make room for your next role</h3>
-                      <p>Save a job description to see how your experience connects.</p>
-                      <button className="text-button" onClick={() => go('New Job')}>
-                        <Plus size={15} />
-                        Add your first opportunity
-                      </button>
-                    </div>
-                  )}
-                </section>
-                <section className="panel getting-started">
-                  <div className="section-heading">
-                    <div>
-                      <h2>A good place to begin</h2>
-                      <p>Three steps. One authentic story.</p>
-                    </div>
-                  </div>
-                  {[
-                    {
-                      title: 'Bring your experience',
-                      copy: 'Build and approve your master profile.',
-                      done: approved > 0,
-                      area: 'Master Profile' as Area,
-                    },
-                    {
-                      title: 'Connect your Codex',
-                      copy: 'Keep your agent on your computer.',
-                      done: connected,
-                      area: 'Agent & Settings' as Area,
-                    },
-                    {
-                      title: 'Make it relevant',
-                      copy: 'Paste a job. Create your first version.',
-                      done: data.versions.length > 0,
-                      area: 'New Job' as Area,
-                    },
-                  ].map((s, i) => (
-                    <button className="onboarding-step" key={s.title} onClick={() => go(s.area)}>
-                      <span className={`step-number ${s.done ? 'done' : ''}`}>
-                        {s.done ? <Check size={15} /> : String(i + 1).padStart(2, '0')}
-                      </span>
-                      <span>
-                        <strong>{s.title}</strong>
-                        <small>{s.copy}</small>
-                      </span>
-                      <ChevronRight size={15} />
-                    </button>
-                  ))}
-                  <div className="quiet-note">
-                    <BookOpen size={16} />
-                    <span>
-                      No invented skills. No mystery scores.
-                      <br />
-                      Just your experience, with evidence.
-                    </span>
-                  </div>
-                </section>
-              </div>
-            </>
+            <Dashboard
+              data={data}
+              approved={approved}
+              connected={connected}
+              go={go}
+              openJob={openJob}
+            />
           )}
           {area === 'Master Profile' && (
             <ProfileEditor
@@ -538,7 +364,7 @@ export default function Workspace() {
           <footer>
             <span>ResumeForge</span>
             <span>Built on your experience. Powered by your agent.</span>
-            <span>Personal workspace · v0.1</span>
+            <span>Private account · ResumeForge</span>
           </footer>
         </main>
       </div>
@@ -560,10 +386,12 @@ export default function Workspace() {
 }
 
 function Login({
+  inline = false,
   close,
   onSuccess,
   ready,
 }: {
+  inline?: boolean;
   close: () => void;
   onSuccess: () => void;
   ready: boolean;
@@ -573,8 +401,25 @@ function Login({
     [code, setCode] = useState(''),
     [sent, setSent] = useState(false),
     [error, setError] = useState(''),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [registration, setRegistration] = useState<boolean | null>(null);
   useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    fetch('/api/public/config', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((config) => {
+        if (active) setRegistration(config.registrationOpen === true);
+      })
+      .catch(() => {
+        if (active) setRegistration(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (inline) return;
     const previous = document.activeElement as HTMLElement | null;
     dialog.current?.querySelector<HTMLElement>('button, input')?.focus();
     const keydown = (event: KeyboardEvent) => {
@@ -604,7 +449,7 @@ function Login({
       document.removeEventListener('keydown', keydown);
       previous?.focus();
     };
-  }, [close]);
+  }, [close, inline]);
   useEffect(() => {
     if (sent) dialog.current?.querySelector<HTMLElement>('input:not(:disabled)')?.focus();
   }, [sent]);
@@ -614,11 +459,7 @@ function Login({
     setError('');
     try {
       if (!sent) {
-        const { error } = await supabase!.auth.signInWithOtp({
-          email,
-          options: { shouldCreateUser: true, emailRedirectTo: window.location.origin },
-        });
-        if (error) throw error;
+        await api('auth/email', 'POST', { email });
         setSent(true);
       } else {
         const { error } = await supabase!.auth.verifyOtp({ email, token: code, type: 'email' });
@@ -632,21 +473,25 @@ function Login({
     }
   }
   return (
-    <div className="modal-backdrop">
+    <div className={inline ? 'auth-inline' : 'modal-backdrop'}>
       <section
         ref={dialog}
-        className="modal"
-        role="dialog"
-        aria-modal="true"
+        className={inline ? 'public-auth' : 'modal'}
+        role={inline ? undefined : 'dialog'}
+        aria-modal={inline ? undefined : true}
         aria-labelledby="login-title"
       >
-        <button className="modal-close icon-button" aria-label="Close sign in" onClick={close}>
-          <X size={20} />
-        </button>
+        {!inline && (
+          <button className="modal-close icon-button" aria-label="Close sign in" onClick={close}>
+            <X size={20} />
+          </button>
+        )}
         <span className="brand-mark">
           <Flame size={24} />
         </span>
-        <h2 id="login-title">Your private ResumeForge</h2>
+        <h2 id="login-title">
+          {inline ? 'Sign in or create an account.' : 'Your private ResumeForge'}
+        </h2>
         {!supabase ? (
           <>
             <p>Configure Supabase before signing in.</p>
@@ -664,6 +509,12 @@ function Login({
           </>
         ) : (
           <form onSubmit={submit}>
+            {registration === false && (
+              <p className="notice subtle" role="status">
+                Public registration is being prepared. Email sign-in will open after release checks
+                pass.
+              </p>
+            )}
             <p>
               {sent
                 ? 'Check your email and follow the secure sign-in link. If your email includes a verification code, you can enter it below.'
@@ -696,7 +547,12 @@ function Login({
                 {error}
               </p>
             )}
-            <button disabled={!ready || busy || (sent && !code.trim())} className="button full">
+            <button
+              disabled={
+                !ready || busy || (!sent && registration !== true) || (sent && !code.trim())
+              }
+              className="button full"
+            >
               {busy ? <LoaderCircle size={16} className="spin" /> : null}
               {sent ? 'Verify code and sign in' : 'Send sign-in email'}
               <ArrowRight size={16} />
@@ -2169,12 +2025,11 @@ function Settings({
                 On your computer, run <code>codex login</code> if needed.
               </li>
               <li>
-                From the repository, run{' '}
-                <code>npm run companion -- pair --url https://your-resumeforge-url</code>.
+                <Link href="/companion" className="text-button">Install the companion</Link>, then run <code>resumeforge pair</code> on your own computer.
               </li>
               <li>Enter the companion’s expiring code below and approve this device.</li>
               <li>
-                Run <code>npm run companion -- run</code> and keep it open.
+                Run <code>resumeforge run</code> and keep it open.
               </li>
             </ol>
             <form
@@ -2207,6 +2062,7 @@ function Settings({
               Approve only a code shown by a companion you started. Codes expire in 10 minutes and
               can be used once.
             </p>
+            <p className="muted">Each user connects their own Codex access. Other agents are currently unavailable. <Link href="/companion">Installation, pairing, troubleshooting, and disconnect guide</Link>.</p>
           </section>
           <section className="panel form-panel">
             <h2>Your devices</h2>

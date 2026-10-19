@@ -1,0 +1,437 @@
+:root {
+  color-scheme: dark;
+}
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  color: var(--ink);
+}
+h1,
+h2,
+h3,
+strong {
+  color: var(--ink);
+}
+.main-shell {
+  background-image:
+    linear-gradient(#6ae3f903 1px, transparent 1px),
+    linear-gradient(90deg, #6ae3f903 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.brand,
+.brand-dot {
+  color: var(--ink);
+}
+.brand-mark {
+  color: var(--accent);
+  background: #142e3c;
+  border: 1px solid #2e5265;
+  border-radius: 7px;
+}
+.brand-dot {
+  color: var(--accent);
+}
+.workspace-label,
+.eyebrow,
+.badge,
+.private-pill,
+.section-tabs,
+.code-block,
+.status-badge {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.4px;
+}
+.sidebar {
+  border-right: 1px solid var(--border);
+}
+.sidebar .nav-item {
+  color: #b4c3d7;
+}
+.sidebar .nav-item:hover {
+  background: #142337;
+  color: #edf3fc;
+}
+.sidebar .nav-item.active {
+  background: #132e3c;
+  color: #8beeff;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.nav-count {
+  background: #253248;
+  color: #c5d3e5;
+}
+.agent-card {
+  background: linear-gradient(135deg, #142331, #101a28);
+  border-color: #294052;
+}
+.agent-card strong,
+.agent-card button {
+  color: #b9eaf4;
+}
+.status-dot {
+  background: #7890ae;
+}
+.status-dot.online {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px #6ae3f90b;
+}
+.avatar {
+  background: #302745;
+  color: #d1c0ff;
+}
+.topbar {
+  background: #0c1420;
+  border-bottom: 1px solid var(--border);
+}
+.breadcrumb strong {
+  color: var(--ink);
+}
+.button {
+  background: var(--accent);
+  color: #06222e;
+  border: 1px solid #8eeeff;
+  box-shadow: 0 0 18px #6ae3f90b;
+  font-weight: 600;
+  border-radius: 5px;
+}
+.button:hover {
+  background: #93edfc;
+}
+.button.secondary,
+.button.light {
+  background: #18283d;
+  border-color: #354c65;
+  color: #dbe8fb;
+}
+.button.secondary:hover,
+.button.light:hover {
+  background: #20354b;
+}
+.button.danger {
+  background: #ef9cae;
+  border-color: #ffb4c4;
+  color: #360c18;
+}
+.text-button {
+  color: var(--accent);
+}
+.text-button:hover {
+  color: #b4f4ff;
+}
+.danger-text {
+  color: #ffb4c4 !important;
+}
+.panel,
+.stat-card {
+  background: var(--surface);
+  border-color: var(--border);
+  border-radius: 8px;
+}
+.section-heading h2,
+.record-heading strong,
+.record-title,
+.job-row strong,
+.stat-card strong {
+  color: var(--ink);
+}
+.section-heading p,
+.form-panel > p,
+.field small,
+.muted,
+.quiet-note,
+.onboarding-step small,
+.job-row small {
+  color: var(--muted);
+}
+.badge {
+  color: #c4d2e6;
+  background: #222f43;
+  border-color: #3d4d65;
+  font-size: 11px;
+}
+.badge.green {
+  color: #86edff;
+  background: #143541;
+  border-color: #255462;
+}
+.notice,
+.notice.success,
+.setup-banner,
+.source-reminder {
+  background: #112d39;
+  color: #c3e7f2;
+  border-color: #2b5264;
+}
+.notice.subtle {
+  background: #152538;
+  color: #c3d4e9;
+  border-color: #31475e;
+}
+.notice.error,
+.form-error,
+.error-card {
+  color: #ffbac8;
+}
+.notice.error {
+  background: #341d2a;
+  border-color: #654054;
+}
+.warning-box,
+.eligibility-box,
+.danger-card {
+  background: #241e32;
+  border-color: #514166;
+}
+.form-panel input,
+.form-panel textarea,
+.form-panel select,
+.modal input,
+.modal textarea,
+.modal select,
+.public-auth input,
+.public-auth textarea,
+.public-auth select,
+input,
+textarea,
+select {
+  background: #0b1421;
+  color: #edf3fc;
+  border-color: #3c4e65;
+  border-radius: 5px;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #92a6c1;
+  opacity: 1;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: #6ae3f9;
+}
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.record-card,
+.application-card,
+.version-row,
+.requirement-card {
+  background: #0e1827;
+  border-color: var(--border);
+}
+.record-card.expanded,
+.record-card.active {
+  border-color: #426077;
+}
+.section-tabs button.active,
+.tabs button.active,
+[role='tab'][aria-selected='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.job-row:hover,
+.onboarding-step:hover,
+.version-row:hover {
+  background: #17283d;
+}
+.company-tile,
+.empty-icon,
+.step-number {
+  background: #172d3d;
+  color: #9cdeed;
+  border-color: #2e5265;
+}
+.step-number.done {
+  background: #143541;
+  color: #86edff;
+}
+.code-block,
+code {
+  color: #c9bcff;
+  background: #1b2237;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.code-block {
+  border: 1px solid #394360;
+  padding: 13px;
+  border-radius: 5px;
+  overflow-wrap: anywhere;
+}
+.pdf-frame {
+  background: #fff;
+  border-color: #354b65;
+}
+.modal-backdrop,
+.mobile-shade {
+  background: #020611c9;
+}
+.modal {
+  background: #101b2a;
+  border-color: #344a63;
+  box-shadow: 0 25px 100px #0007;
+}
+.modal h2 {
+  color: #edf3fc;
+}
+.working-indicator {
+  background: #163644;
+  color: #d4f5ff;
+  border: 1px solid #376477;
+}
+.live-overview.forge-preview {
+  min-height: 0;
+  background: transparent;
+}
+.live-overview .live-readiness {
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border: 0;
+  border-radius: 5px;
+  display: block;
+  background: #25344a;
+  color: var(--accent);
+}
+.live-readiness::-webkit-progress-bar {
+  background: #25344a;
+  border-radius: 5px;
+}
+.live-readiness::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 5px;
+}
+.live-readiness::-moz-progress-bar {
+  background: var(--accent);
+}
+.live-no-resume {
+  padding: 25px 0;
+  color: var(--muted);
+  display: grid;
+  gap: 12px;
+}
+.live-public .fp-signin {
+  min-height: 100vh;
+}
+.live-public .public-auth .brand-mark {
+  margin-bottom: 24px;
+}
+.live-public .public-auth > h2 {
+  font-size: 24px;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+.live-public .public-auth form {
+  margin-top: 20px;
+}
+.live-public .field {
+  margin-bottom: 8px;
+}
+.live-public .fp-signin-card .field > span {
+  font-size: 12px;
+  color: #d4dff0;
+}
+.live-public .fp-signin-card .field input {
+  height: 47px;
+}
+.live-public .fp-signin-card form .button {
+  width: 100%;
+  margin-top: 12px;
+}
+.session-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.companion-guide {
+  max-width: 980px;
+  margin: auto;
+  padding: 35px 25px 70px;
+}
+.companion-guide > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 40px;
+  gap: 20px;
+}
+.companion-guide h1 {
+  font-size: 34px;
+  max-width: 650px;
+  margin-bottom: 16px;
+}
+.companion-guide .lead {
+  max-width: 720px;
+  color: var(--muted);
+  margin-bottom: 30px;
+  font-size: 16px;
+}
+.companion-guide .guide-steps {
+  display: grid;
+  gap: 20px;
+}
+.companion-guide .panel {
+  padding: 26px;
+}
+.companion-guide h2 {
+  margin-bottom: 12px;
+}
+.companion-guide p,
+.companion-guide li {
+  color: var(--muted);
+  line-height: 1.85;
+}
+.companion-guide pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #0a1320;
+  border: 1px solid #34465e;
+  padding: 16px;
+  border-radius: 5px;
+  margin: 16px 0;
+  font-size: 13px;
+}
+.companion-guide a:not(.brand):not(.button) {
+  color: var(--accent);
+}
+.companion-guide details {
+  border-top: 1px solid var(--border);
+  padding: 16px 0;
+}
+.companion-guide summary {
+  cursor: pointer;
+  color: var(--ink);
+}
+.companion-guide details p {
+  margin-top: 12px;
+}
+@media (max-width: 700px) {
+  .live-public .fp-signin-grid {
+    padding-top: 30px;
+  }
+  .live-public .fp-signin-card {
+    padding: 24px;
+  }
+  .live-overview .fp-card-footer {
+    font-size: 12px;
+  }
+  .companion-guide h1 {
+    font-size: 29px;
+  }
+  .companion-guide .panel {
+    padding: 20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *:before,
+  *:after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

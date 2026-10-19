@@ -6,7 +6,7 @@ test('unconfigured app provides honest empty states and usable forms', async ({
 }) => {
   await page.goto('/');
   await expect(page.locator('.app-shell')).toHaveAttribute('data-ready', 'true');
-  await expect(page.getByRole('heading', { name: 'Your next chapter starts here.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your workspace.' })).toBeVisible();
   await expect(page.getByText('Setup needed: connect Supabase')).toBeVisible();
   await page.getByRole('button', { name: 'Master Profile', exact: true }).click();
   await page.getByRole('button', { name: 'Add your first record', exact: true }).click();

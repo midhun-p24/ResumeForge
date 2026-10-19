@@ -8,3 +8,5 @@ artifacts
 package-lock.json
 apps/web/next-env.d.ts
 test-results
+.companion-build
+apps/web/public/downloads

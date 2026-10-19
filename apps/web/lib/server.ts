@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createHash, randomBytes } from 'node:crypto';
+import { isIP } from 'node:net';
 
 export class ApiError extends Error {
   constructor(
@@ -28,12 +29,15 @@ export async function userFor(request: Request) {
   if (!token) throw new ApiError(401, 'SIGN_IN_REQUIRED', 'Sign in to continue.');
   const { data, error } = await db().auth.getUser(token);
   if (error || !data.user) throw new ApiError(401, 'SESSION_EXPIRED', 'Sign in again.');
+  if (!data.user.email_confirmed_at)
+    throw new ApiError(403, 'EMAIL_UNVERIFIED', 'Verify your email before using your workspace.');
   return data.user;
 }
 export async function deviceFor(request: Request) {
   const token = request.headers.get('authorization')?.replace(/^Bearer /, '');
   if (!token || !/^rf_[A-Za-z0-9_-]{43}$/.test(token))
     throw new ApiError(401, 'DEVICE_AUTH', 'Pair this companion in ResumeForge.');
+  await rate(`device-ip:${clientAddress(request)}`, 240, 60);
   const { data, error } = await db()
     .from('agent_devices')
     .select('id,user_id,revoked_at')
@@ -58,6 +62,12 @@ export function checked<T>({
       'QUEUE_FULL',
       'NOT_FOUND',
       'ARTIFACT_OWNER',
+      'PAIR_LIMIT',
+      'DEVICE_LIMIT',
+      'TASK_LIMIT',
+      'STORAGE_LIMIT',
+      'ACCOUNT_LIMIT',
+      'EVENT_LIMIT',
     ];
     const code = known.find((c) => error.message.includes(c));
     if (code)
@@ -71,6 +81,15 @@ export function checked<T>({
           QUEUE_FULL: 'Finish or cancel queued tasks before adding more.',
           NOT_FOUND: 'Record not found.',
           ARTIFACT_OWNER: 'Artifact ownership check failed.',
+          PAIR_LIMIT: 'Too many pending pairings. Finish one or wait for its code to expire.',
+          DEVICE_LIMIT:
+            'Device limit reached. Disconnect an existing device before pairing another.',
+          TASK_LIMIT: 'Task allowance reached: 20 per hour and 50 per day. Try again later.',
+          STORAGE_LIMIT:
+            'Your private artifact allowance is full (100 MiB). Export your data before clearing your account.',
+          ACCOUNT_LIMIT:
+            'Workspace capacity reached. Export your data before clearing your account.',
+          EVENT_LIMIT: 'This task reported too many stage changes. Cancel it and start again.',
         }[code]!,
       );
     throw new ApiError(
@@ -81,6 +100,22 @@ export function checked<T>({
   }
   return data as NonNullable<T>;
 }
+
+/** Vercel overwrites its platform client-IP header. Ignore ordinary forwarding
+ * headers and caller-controlled values on local or unconfigured proxies. */
+export function clientAddress(request: Request) {
+  if (process.env.VERCEL !== '1') return 'local';
+  const value = request.headers.get('x-vercel-forwarded-for')?.trim() ?? '';
+  return isIP(value) ? value : 'unavailable';
+}
+
+export function sameOrigin(request: Request) {
+  const origin = request.headers.get('origin');
+  if (origin && origin !== new URL(request.url).origin)
+    throw new ApiError(403, 'ORIGIN_DENIED', 'Use ResumeForge from its own website.');
+}
+
+export const registrationOpen = () => process.env.RESUMEFORGE_REGISTRATION_ENABLED === 'true';
 export async function rate(key: string, limit: number, seconds = 600) {
   const ok = checked(
     await db().rpc('rf_rate', { p_key: hash(key), p_limit: limit, p_seconds: seconds }),

@@ -47,6 +47,58 @@ async function enqueue(owner = user) {
 }
 
 describe('real PostgreSQL policies and transactions', () => {
+  it('bounds concurrent queue creation and counts cancelled tasks toward hourly allowance', async () => {
+    const owner = randomUUID();
+    await pg.query('insert into auth.users values($1)', [owner]);
+    for (let index = 0; index < 3; index++) await enqueue(owner);
+    const before = await scalar<number>(
+      'select count(*)::int from profile_snapshots where user_id=$1',
+      [owner],
+    );
+    await expect(enqueue(owner)).rejects.toThrow('QUEUE_FULL');
+    expect(
+      await scalar<number>('select count(*)::int from profile_snapshots where user_id=$1', [owner]),
+    ).toBe(before);
+    await pg.query("update tasks set state='cancelled' where user_id=$1", [owner]);
+    for (let index = 3; index < 20; index++) {
+      await enqueue(owner);
+      await pg.query("update tasks set state='cancelled' where user_id=$1", [owner]);
+    }
+    await expect(enqueue(owner)).rejects.toThrow('TASK_LIMIT');
+    await pg.query("update tasks set created_at=now()-interval '2 hours' where user_id=$1", [
+      owner,
+    ]);
+    await expect(enqueue(owner)).resolves.toHaveProperty('job');
+  });
+  it('bounds pending pairings per IP and active devices per account', async () => {
+    const owner = randomUUID();
+    await pg.query('insert into auth.users values($1)', [owner]);
+    const ip = randomUUID();
+    for (let index = 0; index < 3; index++)
+      await scalar('select rf_start_pair($1,$2,$3,$4,$5)', [
+        ip,
+        randomUUID(),
+        randomUUID(),
+        randomUUID(),
+        'Synthetic pairing',
+      ]);
+    await expect(
+      pg.query('select rf_start_pair($1,$2,$3,$4,$5)', [
+        ip,
+        randomUUID(),
+        randomUUID(),
+        randomUUID(),
+        'Too many',
+      ]),
+    ).rejects.toThrow('PAIR_LIMIT');
+    for (let index = 0; index < 5; index++) await device(owner);
+    await expect(device(owner)).rejects.toThrow('DEVICE_LIMIT');
+    await pg.query(
+      'update agent_devices set revoked_at=now() where id=(select id from agent_devices where user_id=$1 limit 1)',
+      [owner],
+    );
+    await expect(device(owner)).resolves.toBeTypeOf('string');
+  });
   it('isolates all owner-scoped tables and denies anonymous access', async () => {
     await pg.query('select rf_save_profile($1,$2)', [user, fixture().input.profile]);
     await pg.exec(`set role authenticated;set request.jwt.claim.sub='${other}';`);

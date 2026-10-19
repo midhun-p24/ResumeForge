@@ -16,7 +16,11 @@ export const tectonicPath = () => {
       import.meta.url,
     ),
   );
-  return process.env.RESUMEFORGE_TECTONIC_PATH || (existsSync(bundled) ? bundled : 'tectonic');
+  const sourceCheckout = import.meta.url.replaceAll('\\', '/').includes('/apps/companion/src/');
+  return (
+    process.env.RESUMEFORGE_TECTONIC_PATH ||
+    (sourceCheckout && existsSync(bundled) ? bundled : 'tectonic')
+  );
 };
 const normalize = (s: string) =>
   s
