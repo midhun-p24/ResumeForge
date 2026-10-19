@@ -85,7 +85,9 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
       const record = records.get(entry.sourceId);
       if (!record || !output.selectedSourceIds.includes(record.id))
         throw new Error('Unapproved or unselected rendering source');
-      const dates = [record.startDate, record.endDate].filter(Boolean).map(e).join(' -- ');
+      const dates = [...new Set([record.startDate, record.endDate].filter(Boolean))]
+        .map(e)
+        .join(' -- ');
       const bullets = entry.bullets.length
         ? '\n\\resumeItemListStart\n' +
           entry.bullets

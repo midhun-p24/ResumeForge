@@ -82,7 +82,8 @@ Rank experience/research and projects independently against the posting.
 Consider the first, second, third, and fourth most relevant experience/research records and
 the first, second, third, and fourth most relevant projects when that many approved records exist.
 Start with these ranked candidates in relevance order within each section; do not stop at one
-project. Fit them through concise, substantive bullets, then omit lower-priority content only
+project. Order bullets within each entry from most to least relevant and substantive.
+Fit them through concise, substantive bullets, then omit lower-priority content only
 when necessary for one page. The renderer fills the supplied Jake template's existing commands;
 you replace content only and cannot create a different layout or template.
 Give the strongest entries all distinct relevant supported accomplishments (often 3-4 bullets when evidence warrants it),

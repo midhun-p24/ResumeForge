@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { fitResume } from '../apps/companion/src/fit';
+import { fitResume, trimLowestPriority } from '../apps/companion/src/fit';
+import { validateEvidence } from '@resumeforge/contracts';
 import { fixture } from './fixtures';
 import { renderLatex } from '@resumeforge/resume';
 
@@ -10,6 +11,8 @@ const layout = (pageFill: number, status = 'ready') => ({
 
 it('expands sparse pages, then keeps the fuller valid page when expansion overflows', async () => {
   const { input, output } = fixture();
+  const entry = output.resume.sections[0].entries[0];
+  entry.bullets.push({ ...entry.bullets[0], id: '00000000-0000-4000-8000-000000000003' });
   const compile = vi
     .fn()
     .mockResolvedValueOnce(layout(0.65))
@@ -18,16 +21,29 @@ it('expands sparse pages, then keeps the fuller valid page when expansion overfl
   const revise = vi.fn().mockResolvedValue(output);
   const result = await fitResume(input, output, compile, revise);
   expect(result.rendered.pageFill).toBe(0.91);
-  expect(revise).toHaveBeenCalledTimes(2);
+  expect(revise).toHaveBeenCalledTimes(1);
   expect(revise.mock.calls[0][0].revisionRequest).toContain('next most relevant approved record');
-  expect(revise.mock.calls[1][0].revisionRequest).toContain('Shorten');
+  expect(result.output.resume.sections[0].entries[0].bullets).toHaveLength(1);
 });
 it('retains the original valid PDF when both extra candidates overflow', async () => {
   const { input, output } = fixture();
+  input.lockedSectionIds = [output.resume.sections[0].id];
   const original = layout(0.7);
   const compile = vi.fn().mockResolvedValueOnce(original).mockResolvedValue(layout(1, 'overflow'));
   const result = await fitResume(input, output, compile, async () => output);
   expect(result.rendered).toBe(original);
+});
+it('trims unlocked bullets before removing a ranked entry and preserves factual provenance', () => {
+  const { input, output } = fixture();
+  const entry = output.resume.sections[0].entries[0];
+  entry.bullets.push({ ...entry.bullets[0], id: '00000000-0000-4000-8000-000000000002' });
+  input.lockedBulletIds = [entry.bullets[0].id];
+  input.operation = 'revise';
+  input.priorOutput = structuredClone(output);
+  const trimmed = trimLowestPriority(input, output)!;
+  expect(trimmed.resume.sections[0].entries[0].bullets).toEqual([entry.bullets[0]]);
+  expect(validateEvidence(input, trimmed)).toEqual([]);
+  expect(trimLowestPriority(input, trimmed)).toBeNull();
 });
 it('does not regenerate manual renders or already full pages', async () => {
   const { input, output } = fixture();

@@ -1,5 +1,12 @@
 # Companion installation and connection
 
+## 0.3.6: retain ranked entries while fitting
+
+The fitter can remove existing unlocked bullets one at a time, compiling after each
+removal, before dropping whole low-ranked entries. It preserves at least one bullet
+per entry and one entry per section, education, skills, and all locks. At most sixteen
+such trims and two model revision turns are allowed. No facts or formatting are invented.
+
 ## 0.3.5: concise project stacks
 
 Project headings select up to four relevant verified technologies within a fixed
@@ -46,7 +53,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.5.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.6.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup
