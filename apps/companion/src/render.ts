@@ -36,7 +36,7 @@ export async function compileResume(
   onStage: (s: 'Rendering PDF' | 'Checking layout') => Promise<void>,
   allowDownload = false,
   template?: ResumeTemplateId,
-): Promise<{ pdf: Buffer; render: RenderStatus }> {
+): Promise<{ pdf: Buffer; render: RenderStatus; pageFill: number }> {
   await onStage('Rendering PDF');
   const source = join(workspace, 'resume.tex');
   await writeFile(source, renderLatex(profile, output, template), { mode: 0o600 });
@@ -81,13 +81,17 @@ export async function compileResume(
   const warnings: string[] = [];
   let extracted = '';
   let clipped = false;
+  let bottom = Infinity;
+  let firstPageHeight = 792;
   const loading = getDocument({ data: new Uint8Array(pdf), useSystemFonts: true });
   const parsed = await loading.promise;
   for (let n = 1; n <= parsed.numPages; n++) {
     const page = await parsed.getPage(n);
+    if (n === 1) firstPageHeight = page.view[3] - page.view[1];
     const content = await page.getTextContent();
     for (const item of content.items)
       if ('str' in item) {
+        if (n === 1 && item.str.trim()) bottom = Math.min(bottom, item.transform[5]);
         extracted += item.str + ' ';
         const x = item.transform[4],
           y = item.transform[5];
@@ -102,6 +106,9 @@ export async function compileResume(
       s.title,
       ...s.entries.flatMap((e) => [
         profile.records.find((r) => r.id === e.sourceId)!.title,
+        ...(profile.records.find((r) => r.id === e.sourceId)!.kind === 'skill'
+          ? profile.records.find((r) => r.id === e.sourceId)!.technologies
+          : []),
         ...e.bullets.map((b) => b.text),
       ]),
     ]),
@@ -133,6 +140,9 @@ export async function compileResume(
     );
   return {
     pdf,
+    pageFill: Number.isFinite(bottom)
+      ? Math.min(1, Math.max(0, (firstPageHeight - 43.2 - bottom) / (firstPageHeight - 86.4)))
+      : 0,
     render: {
       status: pageCount > 1 ? 'overflow' : clipped || !textVerified ? 'review_required' : 'ready',
       pageCount,

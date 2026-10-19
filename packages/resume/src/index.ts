@@ -54,6 +54,9 @@ export function renderLatex(
           .map((entry) => {
             const r = records.get(entry.sourceId);
             if (!r) throw new Error('Unapproved rendering source');
+            if (r.kind === 'skill') {
+              return `\\noindent\\textbf{${e(r.title)}}${r.technologies.length ? ': ' + e(r.technologies.join(', ')) : ''}${entry.bullets.length ? ': ' + entry.bullets.map((b) => e(b.text)).join('; ') : ''}\\par\n`;
+            }
             const details = [r.organization, [r.startDate, r.endDate].filter(Boolean).join(' -- ')]
               .filter(Boolean)
               .join(' | ');
@@ -68,7 +71,7 @@ export function renderLatex(
             ]
               .filter(Boolean)
               .join(' | ');
-            return `\\noindent\\textbf{${e(r.title)}}\\hfill {\\small ${e(details)}}\\\\\n${meta ? `{\\small ${e(meta)}}\\\\\n` : ''}${entry.bullets.length ? '\\begin{itemize}\n' + entry.bullets.map((b) => `\\item ${e(b.text)}`).join('\n') + '\n\\end{itemize}' : ''}`;
+            return `\\noindent\\textbf{${e(r.title)}}\\\\\n{\\small ${e(details)}}\\par\n${meta ? `{\\small ${e(meta)}}\\par\n` : ''}${entry.bullets.length ? '\\begin{itemize}\n' + entry.bullets.map((b) => `\\item ${e(b.text)}`).join('\n') + '\n\\end{itemize}' : ''}`;
           })
           .join('\n'),
     )

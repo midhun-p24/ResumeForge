@@ -11,9 +11,10 @@ import {
   COMPANION_VERSION,
   progressStages,
 } from '@resumeforge/contracts';
-import type { AgentOutput, TaskInput } from '@resumeforge/contracts';
+import type { AgentOutput } from '@resumeforge/contracts';
 import { AgentFailure, CodexAdapter, codexCommand } from './adapter';
 import { compileResume, tectonicPath } from './render';
+import { fitResume } from './fit';
 import { execFile, localEnvironment } from './process';
 import { spawn } from 'node:child_process';
 
@@ -232,31 +233,15 @@ async function processTask(
       input.operation === 'render'
         ? agentOutputSchema.parse(input.priorOutput)
         : await adapter.run(input, workspace, current.signal, onStage);
-    let rendered = await compileResume(input.profile, output, workspace, current.signal, onStage);
-    // One bounded shortening turn; locked content is carried into the new snapshot.
-    if (rendered.render.status === 'overflow' && input.operation !== 'render') {
-      const originalOutput = output;
-      const shorter: TaskInput = {
-        ...input,
-        operation: 'revise',
-        priorOutput: output,
-        revisionRequest: `${input.revisionRequest}\nThe draft is ${rendered.render.pageCount} pages. Remove lower-priority unlocked content and shorten unlocked bullets. Keep all locks unchanged. Do not alter font size or margins.`,
-      };
-      try {
-        output = await adapter.run(shorter, workspace, current.signal, onStage);
-        rendered = await compileResume(input.profile, output, workspace, current.signal, onStage);
-      } catch (e) {
-        if (
-          !(e instanceof AgentFailure) ||
-          ['CANCELLED', 'AUTH_REQUIRED', 'USAGE_LIMIT'].includes(e.code)
-        )
-          throw e;
-        output = originalOutput;
-        rendered.render.warnings.push(
-          'Bounded shortening failed; original overflow draft retained.',
-        );
-      }
-    }
+    const fittingSignal = current.signal;
+    const fitted = await fitResume(
+      input,
+      output,
+      (candidate) => compileResume(input.profile, candidate, workspace, fittingSignal, onStage),
+      (snapshot) => adapter.run(snapshot, workspace, fittingSignal, onStage),
+    );
+    output = fitted.output;
+    const rendered = fitted.rendered;
     await onStage('Checking layout');
     const payload = {
       leaseToken: task.leaseToken,

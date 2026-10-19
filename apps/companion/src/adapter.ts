@@ -73,9 +73,18 @@ If locks prevent fitting one page, preserve locks and warn. Respect include/excl
 Assess required skills, responsibilities, domain relevance, and preferred qualifications separately.
 Each strong/partial requirement must cite approved source IDs. Missing/unknown evidence is honest.
 Keep eligibility concerns separate from technical fit. Return gaps, unknowns, and a tailoring plan.
-Aim for one readable page: typically 3-5 short sections, 2-4 entries with 2-3 concise bullets each.
+Use the available page fully with substantive, relevant approved evidence, not a short summary.
+Default section order: Education, Technical Skills, Engineering and Research Experience, Projects.
+Include education when approved evidence exists; omit relevant coursework and coursework records.
+Populate Technical Skills with relevant approved skill categories and their actual technologies;
+never emit an empty category label. Include multiple relevant categories, not just Languages.
+Rank experience/research and projects independently against the posting. Give the strongest entries
+all distinct relevant supported accomplishments (often 3-4 bullets when evidence warrants it),
+then add the next most relevant record when space remains. Do not impose a fixed entry count.
+Aim for a densely populated readable single page. Avoid repeated claims, filler, and invented facts.
 Only sections with approved entries belong in the resume. Choose conventional section headings.
-The app renders record titles/organizations/dates directly. Education/skills can have zero bullets.
+The app renders record titles/organizations/dates and skill technologies directly.
+Education may have zero bullets; skills with technologies do not need duplicate bullets.
 Select the most relevant verified experience, projects, and skills for this specific posting.
 Write accomplishment-focused bullets: Accomplished X through Y using Z is a flexible guide,
 not a required sentence pattern. Quantify only with cited approved metrics; never inflate scope.

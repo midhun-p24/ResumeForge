@@ -1,11 +1,25 @@
 # Companion installation and connection
 
+## 0.3.3: fuller evidence and measured page fitting
+
+Tailoring now prioritizes Education, Technical Skills, Engineering and Research
+Experience, then Projects. Coursework is omitted. Skill records render their actual
+technology lists, and long experience headings place organization/date metadata on
+a separate line. Font size and margins stay fixed.
+
+After compilation, a draft below 90% of usable page height can receive additional
+relevant approved accomplishments or the next ranked record. At most two extra
+model turns expand or shorten content; the fullest clean one-page candidate wins.
+Profiles with limited evidence can still produce shorter pages. Locks and source
+exclusions apply throughout; manual render operations never rewrite content.
+This can take longer and use more of the user's own Codex allowance.
+
 ## 0.3.2: tailoring schema correction
 
 If tailoring stopped at “Analyzing requirements” with `AGENT_FAILED`, update the
 companion and retry. The previous generation schema declared optional bullet
 emphasis, which Codex strict structured outputs rejected before generation.
-Version 0.3.2 requires a nullable model field and restores omitted fields for
+Version 0.3.2 introduced a nullable model field and restores omitted fields for
 older saved resumes, preserving locked content. Saved profile records are unaffected.
 Schema rejections now have the distinct `SCHEMA_REJECTED` status.
 
@@ -19,7 +33,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.2.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.3.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup
