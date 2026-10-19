@@ -4,7 +4,13 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { agentOutputSchema, idSchema, taskInputSchema } from '@resumeforge/contracts';
+import {
+  agentOutputSchema,
+  idSchema,
+  companionTaskSchema,
+  COMPANION_VERSION,
+  progressStages,
+} from '@resumeforge/contracts';
 import type { AgentOutput, TaskInput } from '@resumeforge/contracts';
 import { AgentFailure, CodexAdapter, codexCommand } from './adapter';
 import { compileResume, tectonicPath } from './render';
@@ -121,7 +127,14 @@ async function run() {
       const agentStatus = await adapter.status();
       await request(
         'device/heartbeat',
-        { taskId: null, leaseToken: null, stage: 'Analyzing requirements', agentStatus },
+        {
+          taskId: null,
+          leaseToken: null,
+          stage: 'Analyzing requirements',
+          agentStatus,
+          companionVersion: COMPANION_VERSION,
+          capabilities: ['profile_import_v1'],
+        },
         c.token,
       );
       if (agentStatus !== 'authenticated') {
@@ -131,7 +144,7 @@ async function run() {
       }
       const { task } = await request<{
         task: { id: string; input: unknown; leaseToken: string } | null;
-      }>('device/claim', {}, c.token);
+      }>('device/claim', { profileImport: true }, c.token);
       if (task) await processTask(c, task);
       else await sleep(5000);
     } catch (e) {
@@ -149,19 +162,15 @@ async function processTask(
   c: Credential,
   task: { id: string; input: unknown; leaseToken: string },
 ) {
-  const input = taskInputSchema.parse(task.input);
+  const input = companionTaskSchema.parse(task.input);
   idSchema.parse(task.leaseToken);
   if (task.id !== input.taskId) throw new Error('Task ID mismatch');
   const root = join(homedir(), '.resumeforge', 'tasks');
   await mkdir(root, { recursive: true, mode: 0o700 });
   const workspace = await mkdtemp(join(root, 'task-'));
   current = new AbortController();
-  let stage:
-    | 'Analyzing requirements'
-    | 'Selecting experience'
-    | 'Writing resume'
-    | 'Rendering PDF'
-    | 'Checking layout' = 'Analyzing requirements';
+  let stage: (typeof progressStages)[number] =
+    input.operation === 'import_profile' ? 'Parsing master resume' : 'Analyzing requirements';
   let output: AgentOutput | null = null;
   let pending = false;
   const deadline = setTimeout(() => current?.abort(), 10 * 60 * 1000);
@@ -190,6 +199,28 @@ async function processTask(
   };
   try {
     await writeFile(join(workspace, 'input.json'), JSON.stringify(input), { mode: 0o600 });
+    if (input.operation === 'import_profile') {
+      await onStage('Parsing master resume');
+      const extracted = await adapter.extract(input, workspace, current.signal);
+      await onStage('Reviewing extracted records');
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await request(
+            `device/tasks/${task.id}/import-complete`,
+            { leaseToken: task.leaseToken, output: extracted },
+            c.token,
+          );
+          break;
+        } catch (error) {
+          if (attempt === 2 || (error instanceof RequestFailure && error.status < 500)) throw error;
+          await sleep(1500 * (attempt + 1));
+        }
+      }
+      console.log(
+        `Task ${task.id.slice(0, 8)} complete: proposed records ready for private review.`,
+      );
+      return;
+    }
     output =
       input.operation === 'render'
         ? agentOutputSchema.parse(input.priorOutput)
@@ -270,7 +301,7 @@ async function processTask(
 }
 async function doctor() {
   console.log(
-    `ResumeForge companion diagnostics\nServer: ${origin}\nCodex: ${await adapter.status()}`,
+    `ResumeForge companion ${COMPANION_VERSION} diagnostics\nServer: ${origin}\nCodex: ${await adapter.status()}`,
   );
   try {
     const r = await execFile(tectonicPath(), ['--version']);

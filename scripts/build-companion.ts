@@ -4,9 +4,10 @@ import { resolve, join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { JAKE_TEMPLATE_LICENSE } from '../packages/resume/src/jake-template';
+import { COMPANION_VERSION } from '@resumeforge/contracts';
 
 // Publish only this explicit runtime bundle and generated manifest, never the repository.
-const version = '0.2.0';
+const version = COMPANION_VERSION;
 const output = resolve('.companion-build/package');
 const downloads = resolve('apps/web/public/downloads');
 await mkdir(join(output, 'bin'), { recursive: true });

@@ -170,7 +170,79 @@ export const taskInputSchema = z
       ctx.addIssue({ code: 'custom', message: 'Locks require a prior resume' });
   });
 export type TaskInput = z.infer<typeof taskInputSchema>;
+export const COMPANION_VERSION = '0.3.0';
+export const importTaskSchema = z.object({
+  schemaVersion: z.literal(1),
+  taskId: idSchema,
+  operation: z.literal('import_profile'),
+  rawText: z.string().trim().min(40).max(60000),
+});
+export type ImportTaskInput = z.infer<typeof importTaskSchema>;
+const importMetricSchema = z.object({
+  value: short.min(1),
+  context: short.min(1),
+  sourceQuote: text.min(1),
+});
+export const proposedRecordSchema = z.object({
+  record: recordSchema
+    .omit({ id: true, verification: true, metrics: true })
+    .extend({ metrics: z.array(importMetricSchema).max(30) }),
+  sourceQuote: text.min(1),
+  warnings: z.array(short).max(20),
+});
+export const importOutputSchema = z.object({
+  schemaVersion: z.literal(1),
+  contact: profileSchema.shape.contact,
+  contactSourceQuote: z.string().max(8000),
+  records: z.array(proposedRecordSchema).max(100),
+  warnings: z.array(short).max(30),
+});
+export type ImportOutput = z.infer<typeof importOutputSchema>;
+export const companionTaskSchema = z.union([taskInputSchema, importTaskSchema]);
+const importNormalize = (text: string) => text.normalize('NFKC').replace(/\s+/g, ' ').trim();
+export function validateImport(input: ImportTaskInput, output: ImportOutput): string[] {
+  const errors: string[] = [];
+  const source = importNormalize(input.rawText);
+  const quoteExists = (quote: string) => !!quote.trim() && source.includes(importNormalize(quote));
+  if (JSON.stringify(output).length > 750000) errors.push('Import result exceeds its size limit');
+  if (
+    Object.values(output.contact).some((value) =>
+      Array.isArray(value) ? value.length : !!value,
+    ) &&
+    !quoteExists(output.contactSourceQuote)
+  )
+    errors.push('Contact information needs a literal source excerpt');
+  for (const proposal of output.records) {
+    if (!quoteExists(proposal.sourceQuote)) errors.push('Record needs a literal source excerpt');
+    for (const metric of proposal.record.metrics) {
+      if (!quoteExists(metric.sourceQuote)) errors.push('Metric needs a literal source excerpt');
+      const numbers = metric.value.match(/\d[\d,.]*/g) ?? [];
+      const supported: string[] = metric.sourceQuote.match(/\d[\d,.]*/g) ?? [];
+      if (numbers.some((number) => !supported.includes(number)))
+        errors.push('Metric number does not appear in its source excerpt');
+    }
+  }
+  return [...new Set(errors)];
+}
+export function recordIdentity(
+  record: Pick<SourceRecord, 'kind' | 'title' | 'organization' | 'startDate' | 'endDate'>,
+): string {
+  return [record.kind, record.title, record.organization, record.startDate, record.endDate]
+    .map((value) => value.replace(/\s+/g, ' ').trim().toLowerCase())
+    .join('|');
+}
+export interface ProfileImportView {
+  id: string;
+  state: string;
+  stage: string;
+  error_code: string | null;
+  created_at: string;
+  import_applied_at: string | null;
+  draft?: ImportOutput | null;
+}
 export const progressStages = [
+  'Parsing master resume',
+  'Reviewing extracted records',
   'Analyzing requirements',
   'Selecting experience',
   'Writing resume',
@@ -303,6 +375,8 @@ export function validateEvidence(input: TaskInput, output: AgentOutput): string[
 }
 
 export interface DeviceView {
+  companion_version?: string | null;
+  capabilities?: string[];
   id: string;
   name: string;
   last_seen: string | null;

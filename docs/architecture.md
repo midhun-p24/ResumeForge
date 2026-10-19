@@ -23,8 +23,10 @@ Production HTML uses per-response CSP nonces without inline-script/eval exceptio
 
 `packages/contracts` defines protocol version 1 with Zod. Tasks contain the complete immutable
 profile/posting snapshots, preferences, instructions, locks, exclusions, and prior output.
-No ChatGPT memories or conversation history are assumed. Only `tailor`, `revise`, and `render`
-operations are accepted. Tasks cannot supply shell commands, executable paths, or filesystem paths.
+No ChatGPT memories or conversation history are assumed. Only `tailor`, `revise`, `render`,
+and capability-gated `import_profile` operations are accepted. Import tasks have no job/version
+and produce private review proposals rather than resumes. See [text import](profile-import.md).
+Tasks cannot supply shell commands, executable paths, or filesystem paths.
 
 ## Persistence and transactions
 

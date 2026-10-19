@@ -3,6 +3,8 @@ import { readFile, readdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { fixture } from './fixtures';
+import { importFixture } from './import-fixtures';
+import { emptyProfile } from '@resumeforge/contracts';
 
 let pg: PGlite;
 const user = randomUUID(),
@@ -269,5 +271,152 @@ describe('real PostgreSQL policies and transactions', () => {
         [],
       ]),
     ).rejects.toThrow('LEASE_LOST');
+  });
+});
+
+describe('profile import transactions and compatibility', () => {
+  async function setup() {
+    const owner = randomUUID();
+    await pg.query('insert into auth.users values($1)', [owner]);
+    const d = await device(owner);
+    const { input, output } = importFixture();
+    await scalar('select rf_save_profile($1,$2)', [owner, emptyProfile]);
+    await scalar('select rf_enqueue_import($1,$2)', [owner, input]);
+    return { owner, d, input, output };
+  }
+  it('old companions skip imports and capable companions share atomic leases', async () => {
+    const { owner, d, input } = await setup();
+    expect(await scalar('select rf_claim($1)', [d])).toBeNull();
+    const claimed = await scalar<{ id: string; leaseToken: string }>(
+      'select rf_claim_capable($1,true)',
+      [d],
+    );
+    expect(claimed.id).toBe(input.taskId);
+    expect(await scalar('select rf_claim_capable($1,true)', [d])).toBeNull();
+    const foreign = await device(other);
+    expect(await scalar('select rf_claim_capable($1,true)', [foreign])).toBeNull();
+    await pg.query("update tasks set state='cancelled',lease_until=null where user_id=$1", [owner]);
+  });
+  it('completion is owner/lease scoped, idempotent and blocked after revocation', async () => {
+    const { d, input, output } = await setup();
+    const foreign = await device(other);
+    const claimed = await scalar<{ leaseToken: string }>('select rf_claim_capable($1,true)', [d]);
+    await expect(
+      scalar('select rf_finish_import($1,$2,$3,$4)', [
+        foreign,
+        input.taskId,
+        claimed.leaseToken,
+        output,
+      ]),
+    ).rejects.toThrow('LEASE_LOST');
+    await expect(
+      scalar('select rf_finish_import($1,$2,$3,$4)', [d, input.taskId, randomUUID(), output]),
+    ).rejects.toThrow('LEASE_LOST');
+    expect(
+      await scalar('select rf_finish_import($1,$2,$3,$4)', [
+        d,
+        input.taskId,
+        claimed.leaseToken,
+        output,
+      ]),
+    ).toBe(input.taskId);
+    expect(
+      await scalar('select rf_finish_import($1,$2,$3,$4)', [
+        d,
+        input.taskId,
+        claimed.leaseToken,
+        output,
+      ]),
+    ).toBe(input.taskId);
+    await pg.query('update agent_devices set revoked_at=now() where id=$1', [d]);
+    await expect(
+      scalar('select rf_finish_import($1,$2,$3,$4)', [d, input.taskId, claimed.leaseToken, output]),
+    ).rejects.toThrow('DEVICE_REVOKED');
+  });
+  it('merges drafts without replacing approved facts, skips duplicates and applies once', async () => {
+    const { owner, d, input, output } = await setup();
+    const profile = structuredClone(emptyProfile);
+    profile.contact.name = 'Keep Existing Name';
+    const existing = fixture().input.profile.records[0];
+    existing.title = 'Unrelated approved project';
+    profile.records = [existing];
+    await scalar('select rf_save_profile($1,$2)', [owner, profile]);
+    const claimed = await scalar<{ leaseToken: string }>('select rf_claim_capable($1,true)', [d]);
+    await scalar('select rf_finish_import($1,$2,$3,$4)', [
+      d,
+      input.taskId,
+      claimed.leaseToken,
+      output,
+    ]);
+    const record = {
+      ...output.records[0].record,
+      id: randomUUID(),
+      verification: 'approved',
+      metrics: [],
+    };
+    const duplicate = { ...record, id: randomUUID(), title: record.title.toUpperCase() };
+    await expect(
+      scalar('select rf_apply_import($1,$2,$3,null)', [other, input.taskId, [record]]),
+    ).rejects.toThrow('NOT_FOUND');
+    const applied = await scalar<{ profile: typeof profile; added: number }>(
+      'select rf_apply_import($1,$2,$3,null)',
+      [owner, input.taskId, [record, duplicate]],
+    );
+    expect(applied.added).toBe(1);
+    expect(applied.profile.contact.name).toBe('Keep Existing Name');
+    expect(applied.profile.records[0]).toEqual(existing);
+    expect(applied.profile.records[1].verification).toBe('draft');
+    const retried = await scalar<{ added: number; alreadyApplied: boolean }>(
+      'select rf_apply_import($1,$2,$3,null)',
+      [owner, input.taskId, [{ ...record, id: randomUUID() }]],
+    );
+    expect(retried.added).toBe(0);
+    expect(retried.alreadyApplied).toBe(true);
+  });
+  it('bounds imports and rejects cancelled or stale completion', async () => {
+    const { owner, d, input, output } = await setup();
+    const next = importFixture().input;
+    await expect(scalar('select rf_enqueue_import($1,$2)', [owner, next])).rejects.toThrow(
+      'IMPORT_PENDING',
+    );
+    const claimed = await scalar<{ leaseToken: string }>('select rf_claim_capable($1,true)', [d]);
+    await pg.query("update tasks set state='cancelled',lease_until=null where id=$1", [
+      input.taskId,
+    ]);
+    await expect(
+      scalar('select rf_finish_import($1,$2,$3,$4)', [d, input.taskId, claimed.leaseToken, output]),
+    ).rejects.toThrow('LEASE_LOST');
+    for (let i = 0; i < 2; i++) {
+      const queued = importFixture().input;
+      await scalar('select rf_enqueue_import($1,$2)', [owner, queued]);
+      await pg.query("update tasks set state='cancelled' where id=$1", [queued.taskId]);
+    }
+    await expect(scalar('select rf_enqueue_import($1,$2)', [owner, next])).rejects.toThrow(
+      'IMPORT_LIMIT',
+    );
+  });
+  it('denies browser execution of every new privileged function', async () => {
+    await pg.exec('set role authenticated');
+    try {
+      await expect(
+        pg.query('select rf_enqueue_import($1,$2)', [user, importFixture().input]),
+      ).rejects.toThrow('permission denied');
+      await expect(pg.query('select rf_claim_capable($1,true)', [randomUUID()])).rejects.toThrow(
+        'permission denied',
+      );
+      await expect(
+        pg.query('select rf_finish_import($1,$2,$3,$4)', [
+          randomUUID(),
+          randomUUID(),
+          randomUUID(),
+          {},
+        ]),
+      ).rejects.toThrow('permission denied');
+      await expect(
+        pg.query('select rf_apply_import($1,$2,$3,null)', [user, randomUUID(), []]),
+      ).rejects.toThrow('permission denied');
+    } finally {
+      await pg.exec('reset role');
+    }
   });
 });

@@ -10,7 +10,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.2.0.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.0.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup
@@ -31,6 +31,10 @@ package. The private repository, web server source, credentials, profiles, and g
 are not part of that allowlist. Codex account/model access and usage depend on the user's plan.
 
 ## Pairing and authorization
+
+Companion 0.3.0 supports pasted master-resume extraction into reviewable drafts. To upgrade,
+stop the old worker, rerun the install command above, then run doctor and run. Your pairing is
+retained; do not pair again just to upgrade. Older workers skip imports and continue tailoring.
 
 The default origin is https://resume-forge.midoon.dev. Credentials are scoped per origin.
 For development, pass --url http://localhost:3000 to both pair and run. HTTPS is required except

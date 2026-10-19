@@ -31,7 +31,7 @@ import {
   WifiOff,
   X,
 } from 'lucide-react';
-import { emptyProfile, fitScore, stages } from '@resumeforge/contracts';
+import { emptyProfile, fitScore, stages, profileSchema } from '@resumeforge/contracts';
 import type {
   AgentOutput,
   ApplicationView,
@@ -45,6 +45,7 @@ import { renderLatex, safeFilename } from '@resumeforge/resume';
 import { api, download, supabase } from '../lib/client';
 import { Dashboard } from './dashboard';
 import { PublicHome } from './public-home';
+import { ProfileImporter } from './profile-import';
 
 type Area =
   | 'Dashboard'
@@ -87,7 +88,7 @@ const failureHelp: Record<string, string> = {
 };
 
 export default function Workspace() {
-  const account = useRef<string|null>(null);
+  const account = useRef<string | null>(null);
   const [session, setSession] = useState<Session | null>(null),
     [authReady, setAuthReady] = useState(false),
     [area, setArea] = useState<Area>('Dashboard'),
@@ -99,25 +100,32 @@ export default function Workspace() {
     [menu, setMenu] = useState(false),
     [showLogin, setShowLogin] = useState(false);
   const refresh = useCallback(async () => {
-    const expected=account.current;
+    const expected = account.current;
     const next = await api<WorkspaceData>('workspace');
     // A late response from a signed-out/switched account must never reappear.
-    if(expected && account.current===expected) setData(next);
+    if (expected && account.current === expected) setData(next);
   }, []);
   useEffect(() => {
     if (!supabase) {
       setAuthReady(true);
       return;
     }
-    let events=0,alive=true;
-    const apply=(s:Session|null)=>{
-      const id=s?.user.id??null;
-      if(account.current!==id){setData(emptyData);setSelectedJob('');setError('');setMessage('');}
-      account.current=id;
-      setSession(s);setAuthReady(true);
+    let events = 0,
+      alive = true;
+    const apply = (s: Session | null) => {
+      const id = s?.user.id ?? null;
+      if (account.current !== id) {
+        setData(emptyData);
+        setSelectedJob('');
+        setError('');
+        setMessage('');
+      }
+      account.current = id;
+      setSession(s);
+      setAuthReady(true);
     };
     void supabase.auth.getSession().then(({ data }) => {
-      if(alive&&events===0) apply(data.session);
+      if (alive && events === 0) apply(data.session);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => {
       events++;
@@ -125,7 +133,10 @@ export default function Workspace() {
       if (s) setShowLogin(false);
       if (!s) setData(emptyData);
     });
-    return () => {alive=false;listener.subscription.unsubscribe();};
+    return () => {
+      alive = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
   useEffect(() => {
     if (!session) return;
@@ -341,6 +352,12 @@ export default function Workspace() {
               canSave={!!session}
               run={run}
               busy={busy}
+              importConnected={data.devices.some(
+                (device) =>
+                  online(device) &&
+                  device.agent_status === 'authenticated' &&
+                  device.capabilities?.includes('profile_import_v1'),
+              )}
             />
           )}
           {area === 'New Job' && (
@@ -623,11 +640,13 @@ function ProfileEditor({
   canSave,
   run,
   busy,
+  importConnected,
 }: {
   saved: Profile;
   canSave: boolean;
   run: Run;
   busy: boolean;
+  importConnected: boolean;
 }) {
   const [p, setP] = useState<Profile>(saved),
     [loaded, setLoaded] = useState(false);
@@ -726,9 +745,25 @@ function ProfileEditor({
               />
             </Field>
             <p className="muted">
-              Use this reference when entering facts below. PDF and DOCX import are not available in
-              this release.
+              Paste plain text to extract draft records with your own Codex companion. PDF and DOCX
+              file uploads are not available.
             </p>
+            <ProfileImporter
+              rawText={p.masterText}
+              records={p.records}
+              canSave={canSave}
+              dirty={
+                JSON.stringify(profileSchema.safeParse(p).data ?? p) !==
+                JSON.stringify(profileSchema.safeParse(saved).data ?? saved)
+              }
+              connected={importConnected}
+              busy={busy}
+              run={run}
+              onApplied={(profile) => {
+                setP(profile);
+                setLoaded(true);
+              }}
+            />
           </section>
           <div className="section-heading">
             <div>
@@ -2025,7 +2060,10 @@ function Settings({
                 On your computer, run <code>codex login</code> if needed.
               </li>
               <li>
-                <Link href="/companion" className="text-button">Install the companion</Link>, then run <code>resumeforge pair</code> on your own computer.
+                <Link href="/companion" className="text-button">
+                  Install the companion
+                </Link>
+                , then run <code>resumeforge pair</code> on your own computer.
               </li>
               <li>Enter the companion’s expiring code below and approve this device.</li>
               <li>
@@ -2062,7 +2100,13 @@ function Settings({
               Approve only a code shown by a companion you started. Codes expire in 10 minutes and
               can be used once.
             </p>
-            <p className="muted">Each user connects their own Codex access. Other agents are currently unavailable. <Link href="/companion">Installation, pairing, troubleshooting, and disconnect guide</Link>.</p>
+            <p className="muted">
+              Each user connects their own Codex access. Other agents are currently unavailable.{' '}
+              <Link href="/companion">
+                Installation, pairing, troubleshooting, and disconnect guide
+              </Link>
+              .
+            </p>
           </section>
           <section className="panel form-panel">
             <h2>Your devices</h2>

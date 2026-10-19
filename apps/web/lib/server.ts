@@ -68,6 +68,11 @@ export function checked<T>({
       'STORAGE_LIMIT',
       'ACCOUNT_LIMIT',
       'EVENT_LIMIT',
+      'IMPORT_PENDING',
+      'IMPORT_LIMIT',
+      'IMPORT_INVALID',
+      'IMPORT_NOT_READY',
+      'IMPORT_SAVE_PROFILE',
     ];
     const code = known.find((c) => error.message.includes(c));
     if (code)
@@ -90,6 +95,11 @@ export function checked<T>({
           ACCOUNT_LIMIT:
             'Workspace capacity reached. Export your data before clearing your account.',
           EVENT_LIMIT: 'This task reported too many stage changes. Cancel it and start again.',
+          IMPORT_PENDING: 'Finish or cancel the current master-resume import first.',
+          IMPORT_LIMIT: 'Import allowance reached: 3 per hour and 10 per day.',
+          IMPORT_INVALID: 'The import request is invalid.',
+          IMPORT_NOT_READY: 'Wait for extraction to finish before importing drafts.',
+          IMPORT_SAVE_PROFILE: 'Save your profile before adding imported drafts.',
         }[code]!,
       );
     throw new ApiError(

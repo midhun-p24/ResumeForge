@@ -440,3 +440,44 @@ code {
     scroll-behavior: auto !important;
   }
 }
+.resume-import {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+.resume-import fieldset {
+  border: 0;
+  padding: 0;
+  margin: 16px 0;
+  min-width: 0;
+}
+.resume-import .field {
+  margin-top: 12px;
+}
+.import-proposal,
+.import-metric {
+  border: 1px solid var(--border, #26364c);
+  padding: 16px;
+  border-radius: 8px;
+  min-width: 0;
+}
+.import-excerpt {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-left: 2px solid #4295ac;
+  padding-left: 12px;
+  margin: 14px 0;
+  font-size: 14px;
+}
+.import-warnings {
+  padding-left: 22px;
+  line-height: 1.6;
+}
+.resume-import details summary {
+  cursor: pointer;
+  min-height: 36px;
+  padding: 8px 0;
+}
+.resume-import dd {
+  overflow-wrap: anywhere;
+}

@@ -15,7 +15,8 @@
 - Account/API/pairing quotas bound normal abuse. The app's email gate/rates do not replace
   Supabase's public Auth rate limits. Add provider CAPTCHA/stronger edge controls as traffic grows.
   No service can promise immunity from distributed abuse; monitor shared free-tier capacity.
-- Manual entry and pasted reference text work. PDF/DOCX fact import and posting/portfolio URL
+- Manual entry and pasted-text extraction through each user's own Codex companion work. Extracted
+  records remain drafts until reviewed and approved. PDF/DOCX uploads and posting/portfolio URL
   extraction remain deferred; saved URLs are references only.
 - The controlled LaTeX layout is an original compatible Jake-inspired default, not the exact
   preferred upstream template. Replacements require source/license review and fresh checks.

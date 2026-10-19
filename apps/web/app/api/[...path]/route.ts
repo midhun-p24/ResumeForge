@@ -13,6 +13,10 @@ import {
   progressStages,
   taskInputSchema,
   validateEvidence,
+  COMPANION_VERSION,
+  importTaskSchema,
+  importOutputSchema,
+  validateImport,
 } from '@resumeforge/contracts';
 import type { AgentOutput, TaskInput } from '@resumeforge/contracts';
 import { renderLatex, safeFilename } from '@resumeforge/resume';
@@ -31,6 +35,7 @@ import {
   registrationOpen,
   userFor,
 } from '../../../lib/server';
+import { profileImportRoute } from '../../../lib/profile-import';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,6 +56,7 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
         registrationOpen: registrationOpen(),
         companionRequired: true,
         providers: ['codex'],
+        companionVersion: COMPANION_VERSION,
       });
     if (route === 'auth/email' && method === 'POST') {
       if (!registrationOpen())
@@ -144,8 +150,19 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
       const d = await deviceFor(request);
       await rate(`device:${d.id}`, 120, 60);
       if (path[3] === 'complete') await rate(`complete:${d.id}`, 10, 60);
-      if (route === 'device/claim' && method === 'POST')
-        return ok({ task: checked(await db().rpc('rf_claim', { p_device: d.id })) });
+      if (route === 'device/claim' && method === 'POST') {
+        const b = z
+          .object({ profileImport: z.boolean().optional() })
+          .parse(await body(request, 2000));
+        return ok({
+          task: checked(
+            await db().rpc('rf_claim_capable', {
+              p_device: d.id,
+              p_imports: b.profileImport === true,
+            }),
+          ),
+        });
+      }
       if (route === 'device/disconnect' && method === 'POST') {
         checked(
           await db()
@@ -162,8 +179,19 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
             leaseToken: idSchema.nullable(),
             stage: z.enum(progressStages),
             agentStatus: z.enum(['authenticated', 'sign_in_required', 'unavailable']),
+            companionVersion: z.string().max(20).optional(),
+            capabilities: z.array(z.literal('profile_import_v1')).max(1).optional(),
           })
           .parse(await body(request, 3000));
+        checked(
+          await db()
+            .from('agent_devices')
+            .update({
+              companion_version: b.companionVersion ?? null,
+              capabilities: b.capabilities ?? [],
+            })
+            .eq('id', d.id),
+        );
         return ok({
           active: checked(
             await db().rpc('rf_heartbeat', {
@@ -178,6 +206,56 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
       }
       if (path[1] === 'tasks' && path[2]) {
         const task = await owned('tasks', idSchema.parse(path[2]), d.user_id);
+        if (task.input?.operation === 'import_profile') {
+          const input = importTaskSchema.parse(task.input);
+          if (path[3] === 'import-complete' && method === 'POST') {
+            await rate(`complete:${d.id}`, 10, 60);
+            const b = z
+              .object({ leaseToken: idSchema, output: importOutputSchema })
+              .parse(await body(request, 1000000));
+            const errors = validateImport(input, b.output);
+            if (errors.length) throw new ApiError(422, 'IMPORT_EVIDENCE', errors.join('; '));
+            return ok({
+              id: checked(
+                await db().rpc('rf_finish_import', {
+                  p_device: d.id,
+                  p_task: task.id,
+                  p_lease: b.leaseToken,
+                  p_output: b.output,
+                }),
+              ),
+            });
+          }
+          if (path[3] === 'fail' && method === 'POST') {
+            const b = z
+              .object({
+                leaseToken: idSchema,
+                code: z.enum([
+                  'AUTH_REQUIRED',
+                  'USAGE_LIMIT',
+                  'MODEL_ACCESS',
+                  'AGENT_FAILED',
+                  'INVALID_OUTPUT',
+                  'TIMEOUT',
+                  'CANCELLED',
+                ]),
+                draft: z.null(),
+              })
+              .parse(await body(request, 2000));
+            return ok({
+              saved: checked(
+                await db().rpc('rf_fail', {
+                  p_device: d.id,
+                  p_task: task.id,
+                  p_lease: b.leaseToken,
+                  p_code: b.code,
+                  p_draft: null,
+                }),
+              ),
+            });
+          }
+          throw new ApiError(404, 'NOT_FOUND', 'Endpoint not found.');
+        }
         const input = taskInputSchema.parse(task.input);
         if (path[3] === 'complete' && method === 'POST') {
           const b = completionSchema.parse(await body(request));
@@ -304,6 +382,8 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
     const u = await userFor(request);
     await rate(`user:${u.id}`, 180, 60);
     if (method !== 'GET') await rate(`write:${u.id}`, 40, 60);
+    const importResponse = await profileImportRoute(request, path, u.id);
+    if (importResponse) return importResponse;
     if (route === 'workspace') await rate(`workspace:${u.id}`, 60, 60);
     if (route === 'export') await rate(`export:${u.id}`, 3, 600);
     if (path[0] === 'artifacts') await rate(`download:${u.id}`, 60, 60);
@@ -314,12 +394,15 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
         ['tasks', taskFields],
         ['resume_versions', versionFields],
         ['applications', 'id,job_id,stage,notes,applied_at,resume_version_id'],
-        ['agent_devices', 'id,name,last_seen,revoked_at,agent_status'],
+        [
+          'agent_devices',
+          'id,name,last_seen,revoked_at,agent_status,companion_version,capabilities',
+        ],
         ['artifacts', 'id,version_id,kind,filename'],
       ];
       const results = await Promise.all(
-        tables.map(([table, select]) =>
-          db()
+        tables.map(([table, select]) => {
+          const query = db()
             .from(table)
             .select(select)
             .eq('user_id', u.id)
@@ -333,8 +416,9 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
                     : 'created_at',
               { ascending: false },
             )
-            .limit(table === 'tasks' ? 100 : 500),
-        ),
+            .limit(table === 'tasks' ? 100 : 500);
+          return table === 'tasks' ? query.neq('input->>operation', 'import_profile') : query;
+        }),
       );
       const rows = results.map((r) => checked(r));
       return ok({
