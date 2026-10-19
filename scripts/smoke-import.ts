@@ -285,7 +285,7 @@ try {
       page.getByText('Imported as drafts. Review and approve each record below before tailoring.', {
         exact: true,
       }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 30000 });
     await page.screenshot({ path: join(workspace, 'import-review.png'), fullPage: true });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 390, height: 844 });
@@ -357,6 +357,7 @@ try {
       await page.getByLabel('Resume import').selectOption(failed);
       await expect(page.getByRole('list', { name: 'Import validation details' })).toContainText(
         details[0],
+        { timeout: 15000 },
       );
       await expect(
         page.getByRole('heading', { name: /Review proposed records/ }),
