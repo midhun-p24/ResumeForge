@@ -1,4 +1,13 @@
-﻿# Companion installation and connection
+# Companion installation and connection
+
+## 0.3.2: tailoring schema correction
+
+If tailoring stopped at “Analyzing requirements” with `AGENT_FAILED`, update the
+companion and retry. The previous generation schema declared optional bullet
+emphasis, which Codex strict structured outputs rejected before generation.
+Version 0.3.2 requires a nullable model field and restores omitted fields for
+older saved resumes, preserving locked content. Saved profile records are unaffected.
+Schema rejections now have the distinct `SCHEMA_REJECTED` status.
 
 The public guide is https://resume-forge.midoon.dev/companion. Users do not need private
 GitHub access. Each person installs the companion on their own computer and uses their own
@@ -10,7 +19,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.1.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.2.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

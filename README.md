@@ -1,4 +1,4 @@
-﻿# ResumeForge
+# ResumeForge
 
 A public resume-tailoring application with individual private accounts, powered by each
 user's own locally authenticated Codex companion.
@@ -19,7 +19,7 @@ No public user's tasks run through the owner's computer or Codex account.
 The companion is a public, allowlisted runtime download; private GitHub access is unnecessary:
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.1.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.2.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

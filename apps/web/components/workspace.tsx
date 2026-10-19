@@ -85,6 +85,7 @@ const failureHelp: Record<string, string> = {
   LEASE_EXHAUSTED: 'The companion lost its lease three times. Reconnect and start a new task.',
   TIMEOUT: 'Task exceeded its time limit. Request a shorter revision.',
   AGENT_FAILED: 'Codex failed. Run the companion doctor command to check access.',
+  SCHEMA_REJECTED: 'Codex rejected the companion output schema. Update your companion, then retry.',
 };
 
 export default function Workspace() {

@@ -149,6 +149,45 @@ export const agentOutputSchema = z.object({
   warnings: z.array(short).max(40),
 });
 export type AgentOutput = z.infer<typeof agentOutputSchema>;
+// Saved v1 resumes may omit emphasis. The model-facing schema must instead
+// require every property; null explicitly represents the older omitted value.
+const generationBulletSchema = bulletSchema.extend({
+  emphasis: bulletSchema.shape.emphasis.unwrap().nullable(),
+});
+export const generationOutputSchema = agentOutputSchema.extend({
+  resume: resumeSchema.extend({
+    sections: z
+      .array(
+        sectionSchema.extend({
+          entries: z
+            .array(
+              sectionSchema.shape.entries.element.extend({
+                bullets: z.array(generationBulletSchema).max(12),
+              }),
+            )
+            .max(20),
+        }),
+      )
+      .max(12),
+  }),
+});
+export function parseGeneratedAgentOutput(value: unknown): AgentOutput {
+  const generated = generationOutputSchema.parse(value);
+  return agentOutputSchema.parse({
+    ...generated,
+    resume: {
+      sections: generated.resume.sections.map((section) => ({
+        ...section,
+        entries: section.entries.map((entry) => ({
+          ...entry,
+          bullets: entry.bullets.map(({ emphasis, ...bullet }) =>
+            emphasis === null ? bullet : { ...bullet, emphasis },
+          ),
+        })),
+      })),
+    },
+  });
+}
 export const taskInputSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -170,7 +209,7 @@ export const taskInputSchema = z
       ctx.addIssue({ code: 'custom', message: 'Locks require a prior resume' });
   });
 export type TaskInput = z.infer<typeof taskInputSchema>;
-export const COMPANION_VERSION = '0.3.1';
+export const COMPANION_VERSION = '0.3.2';
 export const importTaskSchema = z.object({
   schemaVersion: z.literal(1),
   taskId: idSchema,

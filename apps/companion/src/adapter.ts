@@ -1,7 +1,6 @@
 import { Codex } from '@openai/codex-sdk';
 import { z } from 'zod';
 import {
-  agentOutputSchema,
   validateEvidence,
   importOutputSchema,
   validateImport,
@@ -9,6 +8,8 @@ import {
   numberedImportSource,
   resolveImportSources,
   recoverImportDrafts,
+  generationOutputSchema,
+  parseGeneratedAgentOutput,
 } from '@resumeforge/contracts';
 import type { AgentOutput, TaskInput, ImportTaskInput, ImportOutput } from '@resumeforge/contracts';
 import { execFile, localEnvironment } from './process';
@@ -38,6 +39,8 @@ export class AgentFailure extends Error {
   }
 }
 export function classifyError(message: string) {
+  if (/invalid_json_schema|invalid schema for response_format/i.test(message))
+    return 'SCHEMA_REJECTED';
   if (/usage|quota|rate.?limit|429/i.test(message)) return 'USAGE_LIMIT';
   if (/auth|sign.?in|unauthorized|401/i.test(message)) return 'AUTH_REQUIRED';
   if (/model.*(access|available|support)|403/i.test(message)) return 'MODEL_ACCESS';
@@ -76,8 +79,10 @@ The app renders record titles/organizations/dates directly. Education/skills can
 Select the most relevant verified experience, projects, and skills for this specific posting.
 Write accomplishment-focused bullets: Accomplished X through Y using Z is a flexible guide,
 not a required sentence pattern. Quantify only with cited approved metrics; never inflate scope.
-Use optional emphasis for at most two short, distinct literal substrings of a bullet to bold
+Use emphasis for at most two short, distinct literal substrings of a bullet to bold
 key metrics or achievements. Combined emphasis must cover at most half the bullet. No markup.
+Return emphasis as null when a saved locked bullet omitted the field; use an empty array for
+no explicit highlights otherwise. The application restores null to the omitted saved property.
 Shorten or omit lower-priority unlocked content before changing typography; you cannot redesign
 the application-controlled template, reduce its font size, or change its margins.
 Return natural accomplishment writing. Be faithful to scope and appropriate tense.
@@ -246,7 +251,7 @@ END_UNTRUSTED_NUMBERED_RESUME`;
   ) {
     if ((await this.status()) !== 'authenticated') throw new AgentFailure('AUTH_REQUIRED');
     const thread = restrictedThread(workspace, rules);
-    const outputSchema = z.toJSONSchema(agentOutputSchema, { target: 'draft-7' });
+    const outputSchema = z.toJSONSchema(generationOutputSchema, { target: 'draft-7' });
     let prompt = `Perform the defined ${input.operation} operation on this complete immutable snapshot.\nUNTRUSTED_INPUT_JSON\n${JSON.stringify(input)}\nEND_UNTRUSTED_INPUT_JSON`;
     let retained: AgentOutput | null = null;
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -280,7 +285,7 @@ END_UNTRUSTED_NUMBERED_RESUME`;
       await onStage('Selecting experience');
       let errors: string[] = [];
       try {
-        const parsed = agentOutputSchema.parse(JSON.parse(response));
+        const parsed = parseGeneratedAgentOutput(JSON.parse(response));
         retained = parsed;
         errors = validateEvidence(input, parsed);
         if (!errors.length) {
