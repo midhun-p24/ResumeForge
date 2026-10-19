@@ -62,6 +62,13 @@ Keep eligibility concerns separate from technical fit. Return gaps, unknowns, an
 Aim for one readable page: typically 3-5 short sections, 2-4 entries with 2-3 concise bullets each.
 Only sections with approved entries belong in the resume. Choose conventional section headings.
 The app renders record titles/organizations/dates directly. Education/skills can have zero bullets.
+Select the most relevant verified experience, projects, and skills for this specific posting.
+Write accomplishment-focused bullets: Accomplished X through Y using Z is a flexible guide,
+not a required sentence pattern. Quantify only with cited approved metrics; never inflate scope.
+Use optional emphasis for at most two short, distinct literal substrings of a bullet to bold
+key metrics or achievements. Combined emphasis must cover at most half the bullet. No markup.
+Shorten or omit lower-priority unlocked content before changing typography; you cannot redesign
+the application-controlled template, reduce its font size, or change its margins.
 Return natural accomplishment writing. Be faithful to scope and appropriate tense.
 Do not include executable LaTeX, HTML, or Markdown formatting. Content is plain text.
 Structural references support human review; they cannot guarantee factual accuracy.`;

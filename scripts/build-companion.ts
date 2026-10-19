@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { JAKE_TEMPLATE_LICENSE } from '../packages/resume/src/jake-template';
 
 // Publish only this explicit runtime bundle and generated manifest, never the repository.
 const version = '0.2.0';
@@ -33,6 +34,7 @@ await build({
   legalComments: 'inline',
   banner: { js: '#!/usr/bin/env node' },
 });
+await writeFile(join(output, 'LICENSE-JAKE'), JAKE_TEMPLATE_LICENSE);
 await writeFile(
   join(output, 'package.json'),
   JSON.stringify(
@@ -45,7 +47,7 @@ await writeFile(
       description: 'ResumeForge outbound local Codex companion',
       engines: { node: '>=22.14' },
       bin: { resumeforge: 'bin/resumeforge.mjs' },
-      files: ['bin', 'README.md'],
+      files: ['bin', 'README.md', 'LICENSE-JAKE'],
       dependencies: pinned,
     },
     null,
@@ -54,7 +56,7 @@ await writeFile(
 );
 await writeFile(
   join(output, 'README.md'),
-  '# ResumeForge companion\n\nInstructions: https://resume-forge.midoon.dev/companion\n\nRun resumeforge doctor, resumeforge warmup, resumeforge pair, then resumeforge run.\nEach person uses their own local Codex sign-in. No shared owner account is used.\nNode 22.14+, an OS credential vault, and local Tectonic are required.\n',
+  '# ResumeForge companion\n\nInstructions: https://resume-forge.midoon.dev/companion\n\nRun resumeforge doctor, resumeforge warmup, resumeforge pair, then resumeforge run.\nEach person uses their own local Codex sign-in. No shared owner account is used.\nNode 22.14+, an OS credential vault, and local Tectonic are required.\n\nIncluded Jake resume template by Jake Gutierrez, based on Sourabh Bajaj: see LICENSE-JAKE.\n',
 );
 const npmCli =
   process.env.npm_execpath || join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
@@ -65,7 +67,7 @@ const packed = JSON.parse(
     { cwd: output, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
   ),
 );
-const allowed = new Set(['package.json', 'README.md', 'bin/resumeforge.mjs']);
+const allowed = new Set(['package.json', 'README.md', 'LICENSE-JAKE', 'bin/resumeforge.mjs']);
 if (
   packed.length !== 1 ||
   packed[0].files.some((file: { path: string }) => !allowed.has(file.path))

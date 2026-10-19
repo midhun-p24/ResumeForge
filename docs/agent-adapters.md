@@ -23,6 +23,10 @@ uses a conventional single-column layout inspired by Jake's Resume; it does not 
 upstream source or claim to be the user's exact approved template. Replacements require
 source/license review, attribution, escaping, and fresh layout checks.
 
+The owner's supplied exact Jake layout now has a staged controlled renderer, literal emphasis
+spans, license notices, and a verified synthetic PDF. It awaits visual approval before activation;
+see [canonical template review](canonical-template.md). The production default above remains active.
+
 One repair turn is allowed. One separate shortening pass is allowed for overflow, preserving
 locks. A failed shortening retains the original draft. Font stays 11 pt with 0.6 in margins.
 

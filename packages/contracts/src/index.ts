@@ -111,6 +111,8 @@ export const bulletSchema = z.object({
   text: short.min(1),
   sourceIds: z.array(idSchema).min(1).max(20),
   metricIds: z.array(idSchema).max(20),
+  // Literal text spans only; never Markdown or LaTeX. Optional for saved v1 resumes.
+  emphasis: z.array(short.min(1).max(100)).max(2).optional(),
 });
 export const sectionSchema = z.object({
   id: idSchema,
@@ -235,6 +237,20 @@ export function validateEvidence(input: TaskInput, output: AgentOutput): string[
       if (!approved.has(entry.sourceId) || !selected.has(entry.sourceId))
         errors.push('Entry source is not approved and selected');
       for (const b of entry.bullets) {
+        const spans = b.emphasis ?? [];
+        const ranges = spans.map((span) => ({
+          start: b.text.indexOf(span),
+          end: b.text.indexOf(span) + span.length,
+        }));
+        if (
+          new Set(spans).size !== spans.length ||
+          spans.some((span) => !b.text.includes(span)) ||
+          spans.reduce((length, span) => length + span.length, 0) > b.text.length / 2 ||
+          ranges.some((span, i) =>
+            ranges.some((other, j) => i !== j && span.start < other.end && span.end > other.start),
+          )
+        )
+          errors.push('Emphasis must be selective, distinct literal bullet spans');
         if (seen.has(b.id)) errors.push('Duplicate resume ID');
         seen.add(b.id);
         if (!b.sourceIds.includes(entry.sourceId)) errors.push('Bullet must cite its entry source');

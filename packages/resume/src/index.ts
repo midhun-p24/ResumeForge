@@ -1,4 +1,9 @@
 import type { AgentOutput, Profile } from '@resumeforge/contracts';
+import { renderJakeResume } from './jake';
+export { renderJakeResume } from './jake';
+export type ResumeTemplateId = 'compatible-v1' | 'jake-v1';
+// The supplied canonical template remains review-only until the sample is approved.
+export const DEFAULT_RESUME_TEMPLATE: ResumeTemplateId = 'compatible-v1';
 
 export function escapeLatex(value: string): string {
   const chars: Record<string, string> = {
@@ -31,7 +36,12 @@ export function safeFilename(name: string, company: string, role: string) {
 }
 /** Original compatible default inspired by the single-column Jake's Resume layout.
  * No upstream template source is copied; replacement is application-controlled. */
-export function renderLatex(profile: Profile, output: AgentOutput): string {
+export function renderLatex(
+  profile: Profile,
+  output: AgentOutput,
+  template: ResumeTemplateId = DEFAULT_RESUME_TEMPLATE,
+): string {
+  if (template === 'jake-v1') return renderJakeResume(profile, output);
   const e = escapeLatex;
   const records = new Map(
     profile.records.filter((r) => r.verification === 'approved').map((r) => [r.id, r]),

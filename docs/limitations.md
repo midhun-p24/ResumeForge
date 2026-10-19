@@ -19,6 +19,8 @@
   extraction remain deferred; saved URLs are references only.
 - The controlled LaTeX layout is an original compatible Jake-inspired default, not the exact
   preferred upstream template. Replacements require source/license review and fresh checks.
+  The supplied canonical Jake template is implemented and sample-verified locally, pending the
+  owner's visual approval before production activation. See [template review](canonical-template.md).
 - Source references, numeric checks, PDF extraction/order/coordinates, and overflow heuristics
   help review but cannot guarantee truth or flawless layout. Review before applying.
 - Codex tools and compiler packages are restricted, outputs/time are bounded, and versions are

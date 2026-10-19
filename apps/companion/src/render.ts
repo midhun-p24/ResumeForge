@@ -6,6 +6,7 @@ import { PDFDocument } from 'pdf-lib';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { AgentOutput, Profile, RenderStatus } from '@resumeforge/contracts';
 import { renderLatex } from '@resumeforge/resume';
+import type { ResumeTemplateId } from '@resumeforge/resume';
 import { execFile, localEnvironment } from './process';
 import { AgentFailure } from './adapter';
 
@@ -34,10 +35,11 @@ export async function compileResume(
   signal: AbortSignal,
   onStage: (s: 'Rendering PDF' | 'Checking layout') => Promise<void>,
   allowDownload = false,
+  template?: ResumeTemplateId,
 ): Promise<{ pdf: Buffer; render: RenderStatus }> {
   await onStage('Rendering PDF');
   const source = join(workspace, 'resume.tex');
-  await writeFile(source, renderLatex(profile, output), { mode: 0o600 });
+  await writeFile(source, renderLatex(profile, output, template), { mode: 0o600 });
   let result;
   try {
     result = await execFile(
