@@ -170,7 +170,7 @@ export const taskInputSchema = z
       ctx.addIssue({ code: 'custom', message: 'Locks require a prior resume' });
   });
 export type TaskInput = z.infer<typeof taskInputSchema>;
-export const COMPANION_VERSION = '0.3.0';
+export const COMPANION_VERSION = '0.3.1';
 export const importTaskSchema = z.object({
   schemaVersion: z.literal(1),
   taskId: idSchema,
@@ -198,6 +198,74 @@ export const importOutputSchema = z.object({
   warnings: z.array(short).max(30),
 });
 export type ImportOutput = z.infer<typeof importOutputSchema>;
+const sourceRangeSchema = z.object({
+  startLine: z.number().int().min(0),
+  endLine: z.number().int().min(0),
+});
+const sourceMetricSchema = importMetricSchema
+  .omit({ sourceQuote: true })
+  .extend({ source: sourceRangeSchema });
+export const sourceProposalSchema = proposedRecordSchema
+  .omit({ sourceQuote: true, record: true })
+  .extend({
+    source: sourceRangeSchema,
+    record: proposedRecordSchema.shape.record
+      .omit({ metrics: true })
+      .extend({ metrics: z.array(sourceMetricSchema).max(30) }),
+  });
+export const sourceImportOutputSchema = importOutputSchema
+  .omit({ contactSourceQuote: true, records: true })
+  .extend({
+    contactSource: sourceRangeSchema,
+    records: z.array(sourceProposalSchema).max(100),
+  });
+export type SourceImportOutput = z.infer<typeof sourceImportOutputSchema>;
+export function numberedImportSource(rawText: string): string {
+  return rawText
+    .split(/\r?\n/)
+    .map((line, index) => `${index + 1}: ${line}`)
+    .join('\n');
+}
+/** The application copies source lines; the model never has to reproduce long excerpts. */
+export function resolveImportSources(
+  input: ImportTaskInput,
+  extracted: SourceImportOutput,
+): { output: ImportOutput; diagnostics: string[] } {
+  const lines = input.rawText.split(/\r?\n/);
+  const diagnostics: string[] = [];
+  const quote = (range: z.infer<typeof sourceRangeSchema>, path: string, emptyAllowed = false) => {
+    if (emptyAllowed && range.startLine === 0 && range.endLine === 0) return '';
+    if (range.startLine < 1 || range.endLine < range.startLine || range.endLine > lines.length) {
+      diagnostics.push(`${path}: invalid source line range`);
+      return '';
+    }
+    const text = lines.slice(range.startLine - 1, range.endLine).join('\n');
+    if (!text.trim() || text.length > 8000) {
+      diagnostics.push(`${path}: empty or oversized source excerpt`);
+      return '';
+    }
+    return text;
+  };
+  const output: ImportOutput = {
+    schemaVersion: 1,
+    contact: extracted.contact,
+    contactSourceQuote: quote(extracted.contactSource, 'contact', true),
+    warnings: extracted.warnings,
+    records: extracted.records.map((proposal, index) => ({
+      warnings: proposal.warnings,
+      sourceQuote: quote(proposal.source, `records.${index}`),
+      record: {
+        ...proposal.record,
+        metrics: proposal.record.metrics.map((metric, i) => ({
+          value: metric.value,
+          context: metric.context,
+          sourceQuote: quote(metric.source, `records.${index}.metrics.${i}`),
+        })),
+      },
+    })),
+  };
+  return { output, diagnostics };
+}
 export const companionTaskSchema = z.union([taskInputSchema, importTaskSchema]);
 const importNormalize = (text: string) => text.normalize('NFKC').replace(/\s+/g, ' ').trim();
 export function validateImport(input: ImportTaskInput, output: ImportOutput): string[] {
@@ -216,13 +284,77 @@ export function validateImport(input: ImportTaskInput, output: ImportOutput): st
     if (!quoteExists(proposal.sourceQuote)) errors.push('Record needs a literal source excerpt');
     for (const metric of proposal.record.metrics) {
       if (!quoteExists(metric.sourceQuote)) errors.push('Metric needs a literal source excerpt');
-      const numbers = metric.value.match(/\d[\d,.]*/g) ?? [];
-      const supported: string[] = metric.sourceQuote.match(/\d[\d,.]*/g) ?? [];
+      const numbers = metric.value.match(/\d+(?:[,.]\d+)*/g) ?? [];
+      const supported: string[] = metric.sourceQuote.match(/\d+(?:[,.]\d+)*/g) ?? [];
       if (numbers.some((number) => !supported.includes(number)))
         errors.push('Metric number does not appear in its source excerpt');
     }
   }
   return [...new Set(errors)];
+}
+/** After a bounded repair, retain only source-valid proposals, with explicit omissions. */
+export function recoverImportDrafts(
+  input: ImportTaskInput,
+  output: ImportOutput,
+): ImportOutput | null {
+  const emptyContact = { name: '', email: '', phone: '', location: '', links: [] };
+  const base = {
+    ...output,
+    contact: emptyContact,
+    contactSourceQuote: '',
+    records: [],
+    warnings: [],
+  };
+  let droppedMetrics = 0;
+  const records = output.records.flatMap((proposal) => {
+    if (
+      validateImport(input, {
+        ...base,
+        records: [{ ...proposal, record: { ...proposal.record, metrics: [] } }],
+      }).length
+    )
+      return [];
+    const metrics = proposal.record.metrics.filter(
+      (metric) =>
+        !validateImport(input, {
+          ...base,
+          records: [{ ...proposal, record: { ...proposal.record, metrics: [metric] } }],
+        }).length,
+    );
+    const removed = proposal.record.metrics.length - metrics.length;
+    droppedMetrics += removed;
+    return [
+      {
+        ...proposal,
+        record: { ...proposal.record, metrics },
+        warnings: [
+          ...proposal.warnings,
+          ...(removed
+            ? [
+                `${removed} candidate metrics omitted because source validation failed. Review the original text before approval.`,
+              ]
+            : []),
+        ].slice(0, 20),
+      },
+    ];
+  });
+  if (!records.length) return null;
+  const contactValid = !validateImport(input, { ...output, records: [] }).length;
+  const dropped = output.records.length - records.length;
+  const recovered = {
+    ...output,
+    records,
+    contact: contactValid ? output.contact : emptyContact,
+    contactSourceQuote: contactValid ? output.contactSourceQuote : '',
+    warnings: [
+      `Partial extraction after repair: ${records.length} of ${output.records.length} proposals retained; ${dropped} records and ${droppedMetrics} metrics omitted. Review the original resume for missing content.`,
+      ...(!contactValid
+        ? ['Contact extraction omitted because its source could not be validated.']
+        : []),
+      ...output.warnings,
+    ].slice(0, 30),
+  };
+  return validateImport(input, recovered).length ? null : recovered;
 }
 export function recordIdentity(
   record: Pick<SourceRecord, 'kind' | 'title' | 'organization' | 'startDate' | 'endDate'>,
@@ -239,9 +371,11 @@ export interface ProfileImportView {
   created_at: string;
   import_applied_at: string | null;
   draft?: ImportOutput | null;
+  diagnostics?: string[];
 }
 export const progressStages = [
   'Parsing master resume',
+  'Repairing extracted records',
   'Reviewing extracted records',
   'Analyzing requirements',
   'Selecting experience',

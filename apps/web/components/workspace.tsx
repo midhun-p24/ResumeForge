@@ -356,7 +356,8 @@ export default function Workspace() {
                 (device) =>
                   online(device) &&
                   device.agent_status === 'authenticated' &&
-                  device.capabilities?.includes('profile_import_v1'),
+                  device.capabilities?.includes('profile_import_v1') &&
+                  device.companion_version !== '0.3.0',
               )}
             />
           )}

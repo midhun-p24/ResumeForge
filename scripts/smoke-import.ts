@@ -322,6 +322,50 @@ try {
   );
   assert.equal(retried.added, 0);
   assert.equal(retried.alreadyApplied, true);
+  if (process.argv.includes('--failure-diagnostics')) {
+    const failed = (
+      await api<{ id: string }>('profile/imports', 'POST', { rawText: input.rawText }, a.token, 201)
+    ).id;
+    const claimed = await api<{ task: { id: string; leaseToken: string } }>(
+      'device/claim',
+      'POST',
+      { profileImport: true },
+      deviceToken,
+    );
+    assert.equal(claimed.task.id, failed);
+    const details = ['records.2.source: invalid source line range'];
+    await api(
+      `device/tasks/${failed}/fail`,
+      'POST',
+      { leaseToken: claimed.task.leaseToken, code: 'INVALID_OUTPUT', draft: null, details },
+      deviceToken,
+    );
+    const failedDetail = await api<ProfileImportView>(
+      `profile/imports/${failed}`,
+      'GET',
+      undefined,
+      a.token,
+    );
+    assert.equal(failedDetail.state, 'failed');
+    assert.equal(failedDetail.draft, null);
+    assert.deepEqual(failedDetail.diagnostics, details);
+    const preserved = await api<WorkspaceData>('workspace', 'GET', undefined, a.token);
+    assert.deepEqual(preserved.profile, after.profile);
+    if (browser) {
+      const page = browser.contexts()[0].pages()[0];
+      await expect(page.getByLabel('Resume import')).toContainText('Failed', { timeout: 15000 });
+      await page.getByLabel('Resume import').selectOption(failed);
+      await expect(page.getByRole('list', { name: 'Import validation details' })).toContainText(
+        details[0],
+      );
+      await expect(
+        page.getByRole('heading', { name: /Review proposed records/ }),
+      ).not.toBeVisible();
+    }
+    console.log(
+      'Failed import diagnostics are visible without exposing values or changing saved records.',
+    );
+  }
   await api(`devices/${deviceId}`, 'DELETE', undefined, a.token);
   await api('device/claim', 'POST', { profileImport: true }, deviceToken, 401);
   console.log(

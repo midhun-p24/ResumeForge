@@ -180,6 +180,13 @@ export function ProfileImporter({
           extraction gets one repair attempt; it is never silently accepted.
         </p>
       )}
+      {!!detail?.diagnostics?.length && (
+        <ul className="import-warnings" aria-label="Import validation details">
+          {detail.diagnostics.map((diagnostic, index) => (
+            <li key={index}>{diagnostic}</li>
+          ))}
+        </ul>
+      )}
       {output && (
         <>
           <h3>Review proposed records ({output.records.length})</h3>

@@ -1,14 +1,18 @@
 # Master-resume text import
 
 Paste a complete plain-text resume in **Master Profile → Pasted master resume**, then choose
-**Parse master resume into records**. Each user must run their own signed-in companion 0.3.0
+**Parse master resume into records**. Each user must run their own signed-in companion 0.3.1
 or newer. Older companions continue to tailor but cannot claim imports. No owner account,
 hosted model key, or separately billed API fallback is used. Codex sends task content to its
 model service; local execution does not mean offline inference.
 
 The companion makes a fresh structured extraction request containing only the bounded raw
 resume and extraction instructions. It does not inherit this development chat or send existing
-profile history to parse the new text. One repair attempt is allowed if schema/source checks fail.
+profile history to parse the new text. One repair attempt is allowed if schema/source checks fail. Source line references are resolved by
+the application instead of requiring the model to copy long excerpts exactly. Sentence punctuation
+is excluded from numeric tokens. Repairs reuse the existing thread rather than resending the source.
+If repair fails, only source-valid proposals may be retained, with explicit omission warnings;
+unrecoverable failures expose field/check diagnostics without logging personal values.
 It never compiles a PDF for an import and does not need Tectonic for that operation.
 
 The review screen shows editable proposals, source excerpts, candidate metrics, and warnings.
@@ -68,3 +72,23 @@ heartbeats, source checks, browser review, draft-only insertion and device revoc
 fixture-output browser run verified proposal editing survives polling and mobile layout has no
 horizontal overflow. Existing tailoring, locked revisions, PDF/LaTeX/JSON downloads, editing,
 compare/restore, tracking persistence, export and disconnect also passed against the hosted backend.
+
+## Import validation reliability (0.3.1)
+
+An `INVALID_OUTPUT` from 0.3.0 has no retained validation details, so its exact cause cannot be
+reconstructed from the terminal code alone. Known brittle checks included literal excerpt copying
+and numeric tokens that absorbed trailing punctuation (for example `0.771.`). Regression tests cover
+both. New extraction uses numbered source lines; the application copies the original excerpt and
+keeps backend literal-source validation. New diagnostic messages contain paths/checks, not field
+values. Failed imports do not overwrite profiles, and no real records are reimported by the tests.
+
+The repair stage is visible. If only part of a result can be recovered after repair, omissions are
+explicit and all retained records still require review and approval. Schema-invalid or unparseable
+results are never silently accepted. The large synthetic acceptance script is
+`npx tsx scripts/smoke-import-large.ts` (35 distinct entries across all supported record categories).
+
+Verification on 2026-10-18: the real 35-entry synthetic extraction returned all 35 proposals in
+154 seconds with no partial-recovery omissions. This is one measured test, not a latency guarantee.
+Browser/API acceptance also verified visible failure diagnostics, unchanged saved records after
+failure, ownership checks, draft insertion and revocation. Sixty automated tests passed. No real
+master resume or manually entered user records were modified for this verification.

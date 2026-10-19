@@ -208,7 +208,7 @@ async function processTask(
     await writeFile(join(workspace, 'input.json'), JSON.stringify(input), { mode: 0o600 });
     if (input.operation === 'import_profile') {
       await onStage('Parsing master resume');
-      const extracted = await adapter.extract(input, workspace, current.signal);
+      const extracted = await adapter.extract(input, workspace, current.signal, onStage);
       await onStage('Reviewing extracted records');
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
@@ -292,13 +292,23 @@ async function processTask(
     try {
       await request(
         `device/tasks/${task.id}/fail`,
-        { leaseToken: task.leaseToken, code, draft: output },
+        {
+          leaseToken: task.leaseToken,
+          code,
+          draft: output,
+          details:
+            input.operation === 'import_profile' && e instanceof AgentFailure
+              ? e.diagnostics
+              : undefined,
+        },
         c.token,
       );
     } catch {
       /* cancellation/revocation must not re-authorize writes */
     }
     console.log(`Task ${task.id.slice(0, 8)} stopped: ${code}.`);
+    if (input.operation === 'import_profile' && e instanceof AgentFailure)
+      for (const detail of e.diagnostics) console.log(`Import validation: ${detail}`);
   } finally {
     clearInterval(timer);
     clearTimeout(deadline);

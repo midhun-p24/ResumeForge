@@ -10,7 +10,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.0.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.1.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

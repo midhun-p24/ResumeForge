@@ -52,7 +52,11 @@ export async function profileImportRoute(
   if (path.length === 3 && request.method === 'GET')
     return ok({
       ...Object.fromEntries(fields.split(',').map((key) => [key, task[key]])),
-      draft: task.draft,
+      draft: task.state === 'completed' ? task.draft : null,
+      diagnostics:
+        task.state === 'failed' && Array.isArray(task.draft?.importDiagnostics)
+          ? task.draft.importDiagnostics
+          : [],
     });
   if (path[3] === 'apply' && request.method === 'POST') {
     await rate(`import-apply:${userId}`, 10, 60);

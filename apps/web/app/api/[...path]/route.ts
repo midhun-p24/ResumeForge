@@ -240,6 +240,7 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
                   'CANCELLED',
                 ]),
                 draft: z.null(),
+                details: z.array(z.string().max(200)).max(8).optional(),
               })
               .parse(await body(request, 2000));
             return ok({
@@ -249,7 +250,7 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
                   p_task: task.id,
                   p_lease: b.leaseToken,
                   p_code: b.code,
-                  p_draft: null,
+                  p_draft: b.details?.length ? { importDiagnostics: b.details } : null,
                 }),
               ),
             });
