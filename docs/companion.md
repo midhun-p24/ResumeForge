@@ -1,5 +1,11 @@
 # Companion installation and connection
 
+## 0.3.5: concise project stacks
+
+Project headings select up to four relevant verified technologies within a fixed
+text budget, preventing full master-record stack lists from overflowing the supplied
+single-row heading. The template commands and preamble remain unchanged.
+
 ## 0.3.4: supplied Jake template active
 
 The default now uses the supplied Jake source with its original layout commands,
@@ -40,7 +46,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.4.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.5.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

@@ -105,9 +105,28 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
         return `\\item{\\small{\\textbf{${title}}${record.technologies.length ? ': ' + e(record.technologies.join(', ')) : ''}}}${bullets}`;
       }
       if (record.kind === 'project') {
-        const technologies = record.technologies.length
-          ? ` $|$ \\emph{${e(record.technologies.join(', '))}}`
-          : '';
+        // The supplied heading is a single table row. Choose a concise verified
+        // stack for this role rather than dumping the entire master-record list.
+        const context = [
+          ...output.analysis.requirements.map((r) => r.text),
+          ...entry.bullets.map((b) => b.text),
+        ]
+          .join(' ')
+          .toLowerCase();
+        const ranked = record.technologies
+          .map((value, index) => ({ value, index, match: context.includes(value.toLowerCase()) }))
+          .sort((a, b) => Number(b.match) - Number(a.match) || a.index - b.index)
+          .map((t) => t.value);
+        const chosen: string[] = [];
+        let length = record.title.length + 3;
+        for (const value of ranked) {
+          if (chosen.length === 4) break;
+          const added = value.length + (chosen.length ? 2 : 0);
+          if (length + added > 60) continue;
+          chosen.push(value);
+          length += added;
+        }
+        const technologies = chosen.length ? ` $|$ \\emph{${e(chosen.join(', '))}}` : '';
         return `\\resumeProjectHeading{\\textbf{${linkedTitle}}${technologies}}{${dates}}${bullets}`;
       }
       if (record.kind === 'education') {

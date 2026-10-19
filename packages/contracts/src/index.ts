@@ -209,7 +209,7 @@ export const taskInputSchema = z
       ctx.addIssue({ code: 'custom', message: 'Locks require a prior resume' });
   });
 export type TaskInput = z.infer<typeof taskInputSchema>;
-export const COMPANION_VERSION = '0.3.4';
+export const COMPANION_VERSION = '0.3.5';
 export const importTaskSchema = z.object({
   schemaVersion: z.literal(1),
   taskId: idSchema,

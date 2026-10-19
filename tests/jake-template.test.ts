@@ -68,4 +68,16 @@ describe('supplied canonical Jake template (active)', () => {
     record.kind = 'skill';
     expect(renderLatex(input.profile, output, 'jake-v1')).toContain('TypeScript, PostgreSQL');
   });
+  it('keeps project headers concise without truncating verified technology names', () => {
+    const { input, output } = fixture();
+    const record = input.profile.records[0];
+    record.technologies.push(
+      'A very long master-record technology label that cannot fit in a project heading',
+    );
+    const tex = renderLatex(input.profile, output);
+    expect(tex).toContain('TypeScript, PostgreSQL');
+    expect(tex).not.toContain('A very long master-record technology label');
+    expect(tex).toContain(JAKE_TEMPLATE_PREAMBLE);
+    expect(tex).toContain(record.title);
+  });
 });
