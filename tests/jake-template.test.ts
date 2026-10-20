@@ -81,3 +81,18 @@ describe('supplied canonical Jake template (active)', () => {
     expect(tex).toContain(record.title);
   });
 });
+
+it('uses compact contact labels with original destinations and a smaller name', () => {
+  const { input, output } = fixture();
+  input.profile.contact.links = [
+    'https://github.com/example',
+    'https://www.linkedin.com/in/example-long-id',
+  ];
+  const tex = renderLatex(input.profile, output);
+  expect(tex).toContain('\\href{https://github.com/example}{\\underline{GitHub}}');
+  expect(tex).toContain(
+    '\\href{https://www.linkedin.com/in/example-long-id}{\\underline{LinkedIn}}',
+  );
+  expect(tex).toContain('\\huge \\scshape');
+  expect(tex).toContain('\\titlespacing*');
+});

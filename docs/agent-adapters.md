@@ -19,16 +19,17 @@ evidence, gaps, eligibility, selected sources, resume sections/bullets, metrics,
 The companion produces rendering/artifact status, not the model.
 
 The agent never returns executable LaTeX. The default renderer inserts escaped structured
-content into the owner's supplied Jake template. Its complete preamble, typography,
-margins, section rules and commands are preserved, with MIT attribution retained.
+content into the owner's supplied Jake template. Its complete original preamble and MIT attribution are preserved. Controlled compact spacing
+and a smaller name are applied after that preamble; body type and page margins stay fixed.
 The companion writes `Resume.tex` and compiles `Resume.pdf` locally. See
 [canonical template](canonical-template.md).
 
 One validation repair turn is allowed per generation call. At most two additional fitting
 turns expand sparse pages or shorten overflow, preserving locks and source exclusions.
 The fitter adds one ranked experience and one project per step. Every unlocked included
-experience/project must have at least three distinct supported bullets. It can remove extra
-bullets down to three, then remove whole lower-priority records. The fullest valid one-page
+experience/project must have exactly three distinct supported bullets. It tries all ranked pairs until overflow,
+then shortens wording before removing whole lower-priority records. Three of each is the target,
+with explicit warnings when evidence or page constraints prevent it. The fullest valid one-page
 candidate is retained; font size and margins are never reduced.
 
 On SDK/CLI upgrades rerun live synthetic checks, including tool restrictions. The root

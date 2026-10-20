@@ -23,9 +23,9 @@ export function minimumBulletIssues(input: TaskInput, output: AgentOutput): stri
       const distinct = new Set(
         e.bullets.map((b) => b.text.toLowerCase().replace(/\W+/g, ' ').trim()),
       );
-      return distinct.size < MIN_ENTRY_BULLETS
+      return distinct.size != MIN_ENTRY_BULLETS || e.bullets.length != MIN_ENTRY_BULLETS
         ? [
-            `Entry ${e.sourceId} needs at least three distinct supported bullets; omit it if evidence is insufficient. Never pad or invent facts.`,
+            `Entry ${e.sourceId} needs exactly three distinct supported bullets; omit it if evidence is insufficient. Never pad or invent facts.`,
           ]
         : [];
     }),
@@ -37,7 +37,29 @@ export function hasShallowLockedEntry(input: TaskInput, output: AgentOutput): bo
       (e) =>
         contentKind(input, e.sourceId) &&
         pinnedEntry(input, s.id, e.bullets) &&
-        e.bullets.length < MIN_ENTRY_BULLETS,
+        e.bullets.length !== MIN_ENTRY_BULLETS,
+    ),
+  );
+}
+
+/** Point repairs at the offending bullet without relaxing the evidence validator. */
+export function numericBulletIssues(input: TaskInput, output: AgentOutput): string[] {
+  const metrics = new Map(
+    input.profile.records.flatMap((r) => r.metrics.map((m) => [m.id, m.value] as const)),
+  );
+  return output.resume.sections.flatMap((s) =>
+    s.entries.flatMap((e) =>
+      e.bullets.flatMap((b) => {
+        const supported = b.metricIds.flatMap(
+          (id) => (metrics.get(id) ?? '').match(/\d[\d,.]*/g) ?? [],
+        );
+        const missing = (b.text.match(/\d[\d,.]*/g) ?? []).filter((n) => !supported.includes(n));
+        return missing.length
+          ? [
+              `Bullet ${b.id} in source ${e.sourceId} has uncited numeric tokens: ${[...new Set(missing)].join(', ')}. Use an approved metric citation or remove the numeric wording without inventing a claim.`,
+            ]
+          : [];
+      }),
     ),
   );
 }

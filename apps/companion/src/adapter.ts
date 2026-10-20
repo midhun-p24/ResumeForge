@@ -13,7 +13,7 @@ import {
 } from '@resumeforge/contracts';
 import type { AgentOutput, TaskInput, ImportTaskInput, ImportOutput } from '@resumeforge/contracts';
 import { execFile, localEnvironment } from './process';
-import { minimumBulletIssues } from './content-policy';
+import { minimumBulletIssues, numericBulletIssues } from './content-policy';
 import { createRequire } from 'node:module';
 
 export interface AgentAdapter {
@@ -78,23 +78,25 @@ Use the available page fully with substantive, relevant approved evidence, not a
 Default section order: Education, Technical Skills, Engineering and Research Experience, Projects.
 Include education when approved evidence exists; omit relevant coursework and coursework records.
 Populate Technical Skills with relevant approved skill categories and their actual technologies;
-never emit an empty category label. Include multiple relevant categories, not just Languages.
-Rank experience/research and projects independently against the posting.
-Return a ranked candidate pool in relevance order within the experience/research and projects
-sections. The application builds the page incrementally: first the best experience and best
-project, then the next experience and next project, one of each at a time while space permits.
-Every included experience, research entry and project MUST have at least three distinct,
-substantive, supported accomplishment bullets. Prefer depth in a few strong records over many
-shallow entries. If a record cannot support three honest bullets, omit it and explain why in
-warnings; never split one fact into repetitive bullets, pad, or invent details to meet the count.
+never emit an empty category label. Select the three or four most relevant skill categories, not every category in the master profile. Skills entries should have zero bullets when technologies are already populated.
+Evaluate ALL approved, non-excluded experience/research records and ALL projects against the posting.
+Rank the two categories independently in descending relevance. In analysis.tailoringPlan, explain
+that priority order using one short item per record: category, rank, title and fit reason.
+Return the full eligible ranked
+candidate pool in that order, not merely the first experience and project. The renderer tests
+successive pairs to fill a page. Target at least three experiences (including research) and three
+projects when verified evidence supports them, then include further pairs if they fit.
+Every included experience, research entry and project MUST have EXACTLY THREE distinct,
+substantive, supported accomplishment bullets. Each bullet should convey a different contribution,
+method and outcome when supported. Prefer concise 18-30 word bullets, usually one or two lines.
+Use concrete engineering detail rather than vague praise, responsibilities or inflated ownership.
+Do not repeat a claim in multiple bullets or invent metrics, outcomes, tools or scope.
+If a record cannot support three honest bullets, omit it and explain why in warnings.
 Education and skill categories do not require three bullets. Existing locked content takes
-precedence; preserve it and warn if it prevents satisfying the minimum.
-Order bullets within each entry from most to least relevant and substantive.
-Fit them through concise, substantive bullets, then omit lower-priority content only
-when necessary for one page. The renderer fills the supplied Jake template's existing commands;
-you replace content only and cannot create a different layout or template.
-Give the strongest entries all distinct relevant supported accomplishments (often 3-4 bullets when evidence warrants it),
-then add the next most relevant record when space remains. Do not impose a fixed entry count.
+precedence; preserve it and warn if it prevents satisfying the exact-three policy.
+Order bullets within each entry from most to least relevant. Shorten wording before removing
+lower-priority whole records. No coursework. The renderer controls the Jake layout; return
+structured content only. Do not change typography or produce LaTeX.
 Aim for a densely populated readable single page. Avoid repeated claims, filler, and invented facts.
 Only sections with approved entries belong in the resume. Choose conventional section headings.
 The app renders record titles/organizations/dates and skill technologies directly.
@@ -102,6 +104,9 @@ Education may have zero bullets; skills with technologies do not need duplicate 
 Select the most relevant verified experience, projects, and skills for this specific posting.
 Write accomplishment-focused bullets: Accomplished X through Y using Z is a flexible guide,
 not a required sentence pattern. Quantify only with cited approved metrics; never inflate scope.
+Every digit token in bullet text must be supported by a cited metric, even digits in product names.
+Avoid numeric product names in bullets when they lack metric support; use a clear generic description
+(such as cloud object storage) and retain the exact technology in the metadata/skills instead.
 Use emphasis for at most two short, distinct literal substrings of a bullet to bold
 key metrics or achievements. Combined emphasis must cover at most half the bullet. No markup.
 Return emphasis as null when a saved locked bullet omitted the field; use an empty array for
@@ -275,6 +280,7 @@ END_UNTRUSTED_NUMBERED_RESUME`;
     if ((await this.status()) !== 'authenticated') throw new AgentFailure('AUTH_REQUIRED');
     const thread = restrictedThread(workspace, rules);
     const outputSchema = z.toJSONSchema(generationOutputSchema, { target: 'draft-7' });
+    let lastDiagnostics: string[] = [];
     let prompt = `Perform the defined ${input.operation} operation on this complete immutable snapshot.\nUNTRUSTED_INPUT_JSON\n${JSON.stringify(input)}\nEND_UNTRUSTED_INPUT_JSON`;
     let retained: AgentOutput | null = null;
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -310,7 +316,11 @@ END_UNTRUSTED_NUMBERED_RESUME`;
       try {
         const parsed = parseGeneratedAgentOutput(JSON.parse(response));
         retained = parsed;
-        errors = [...validateEvidence(input, parsed), ...minimumBulletIssues(input, parsed)];
+        errors = [
+          ...validateEvidence(input, parsed),
+          ...minimumBulletIssues(input, parsed),
+          ...numericBulletIssues(input, parsed),
+        ];
         if (!errors.length) {
           await onStage('Writing resume');
           return parsed;
@@ -318,8 +328,9 @@ END_UNTRUSTED_NUMBERED_RESUME`;
       } catch {
         errors = ['Output did not satisfy the required JSON schema'];
       }
+      lastDiagnostics = errors;
       prompt = `Repair the prior result once. Validation errors: ${errors.join('; ')}. All ResumeForge rules still apply. Return a complete valid JSON result. Original snapshot:\n${JSON.stringify(input)}`;
     }
-    throw new AgentFailure('INVALID_OUTPUT', retained);
+    throw new AgentFailure('INVALID_OUTPUT', retained, undefined, lastDiagnostics);
   }
 }

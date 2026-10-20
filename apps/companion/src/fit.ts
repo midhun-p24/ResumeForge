@@ -67,7 +67,7 @@ export async function fitResume<T extends Layout>(
       }
     const selected = new Set<string>();
     let retained: { output: AgentOutput; rendered: T } | null = null;
-    const steps = Math.min(6, Math.max(1, queues.experience.length, queues.project.length));
+    const steps = Math.max(1, queues.experience.length, queues.project.length);
     for (let step = 0; step < steps; step++) {
       for (const kind of ['experience', 'project'] as const)
         if (queues[kind][step]) selected.add(queues[kind][step]);
@@ -75,7 +75,7 @@ export async function fitResume<T extends Layout>(
       if (hasShallowLockedEntry(input, output))
         output.warnings = [
           ...new Set([
-            'Locked legacy content has fewer than three bullets per entry and was preserved. Unlock it to revise under the new minimum.',
+            'Locked legacy content does not have exactly three bullets per entry and was preserved. Unlock it to revise under the new policy.',
             ...output.warnings,
           ]),
         ].slice(0, 40);
@@ -91,66 +91,89 @@ export async function fitResume<T extends Layout>(
         }))
         .filter((s) => s.entries.length);
       let current = { output, rendered: await compile(output) };
-      while (current.rendered.render.status === 'overflow' && trims < 16) {
-        const trimmed = trimLowestPriority(input, current.output);
-        if (!trimmed) break;
-        trims++;
-        current = { output: trimmed, rendered: await compile(trimmed) };
+      // Reserve space for substantive entries before retaining a fourth skills category.
+      if (current.rendered.render.status === 'overflow') {
+        const compact = structuredClone(output);
+        let changed = false;
+        for (const section of compact.resume.sections) {
+          if (
+            !section.entries.every(
+              (e) => input.profile.records.find((r) => r.id === e.sourceId)?.kind === 'skill',
+            )
+          )
+            continue;
+          for (const entry of [...section.entries].reverse()) {
+            if (section.entries.length <= 3) break;
+            if (pinnedEntry(input, section.id, entry.bullets)) continue;
+            section.entries.splice(section.entries.indexOf(entry), 1);
+            changed = true;
+          }
+        }
+        if (changed) current = { output: compact, rendered: await compile(compact) };
       }
-      if (current.rendered.render.status !== 'ready') return retained ?? current;
-      if (!retained || current.rendered.pageFill > retained.rendered.pageFill) retained = current;
-      if (current.rendered.pageFill >= 0.9) break;
+      // Try the whole next pair before trimming anything. Compression gets the full
+      // overflowing candidate, so a sparse retained page cannot hide missing records.
+      if (current.rendered.render.status !== 'ready')
+        return { current, retained, overflowed: current.rendered.render.status === 'overflow' };
+      retained = current;
     }
-    return retained!;
+    return { current: retained!, retained, overflowed: false };
   }
-  let current = await buildIncrementally(initial);
-  async function fitOverflow() {
-    while (current.rendered.render.status === 'overflow' && trims < 16) {
-      const output = trimLowestPriority(input, current.output);
-      if (!output) break;
-      trims++;
-      current = { output, rendered: await compile(output) };
-    }
-  }
-  await fitOverflow();
-  let best = current.rendered.render.status === 'ready' ? current : null;
+  let attempt = await buildIncrementally(initial);
+  let best = attempt.retained;
+  const counts = (output: AgentOutput) => {
+    const entries = output.resume.sections.flatMap((s) => s.entries);
+    return ['experience', 'project'].map(
+      (kind) => entries.filter((e) => contentKind(input, e.sourceId) === kind).length,
+    );
+  };
+  const quality = (candidate: { output: AgentOutput; rendered: T }) => {
+    const sizes = counts(candidate.output);
+    return (
+      Math.min(...sizes) * 1000 +
+      sizes.reduce((a, b) => a + b, 0) * 10 +
+      candidate.rendered.pageFill
+    );
+  };
   for (let turn = 0; turn < 2; turn++) {
-    const overflow = current.rendered.render.status === 'overflow';
-    if (
-      !overflow &&
-      (current.rendered.render.status !== 'ready' || current.rendered.pageFill >= 0.9)
-    )
-      break;
-    const instruction = overflow
-      ? `The draft is ${current.rendered.render.pageCount} pages. Shorten wording or remove whole lower-priority unlocked entries. Keep at least three substantive supported bullets per experience/project; never cut an entry below three to fit. Preserve strongest evidence, education and skills.`
-      : `The compiled draft uses only ${Math.round(current.rendered.pageFill * 100)}% of usable page height. Strengthen supported bullets, then propose the next most relevant experience and next project, one of each at a time. Every included experience/project needs at least three distinct supported bullets. Populate approved technical skills; omit coursework. Do not pad, repeat, invent, or alter font size/margins.`;
+    const enough = best && counts(best.output).every((n) => n >= 3);
+    if (enough) break;
+    const instruction = `Rank ALL eligible experience/research and projects independently and return the full candidate pool. Target at least three of each with EXACTLY three distinct supported bullets per entry. The next candidate ${attempt.overflowed ? 'overflowed the page' : 'did not supply three entries per category'}. Compress bullet wording to 12-18 words each, preserving the specific contribution, concrete method and supported outcome. Remove redundant context and repeated technology lists; aim for a mix of one-line and two-line bullets. Select three relevant skill categories if needed to reserve room for the six core entries. Preserve facts and selective emphasis. No coursework, filler or repeated claims. Keep education and relevant skills. Do not change fonts or margins. Explain any evidence shortage in warnings.`;
     try {
       const output = await revise({
         ...input,
         operation: 'revise',
-        priorOutput: current.output,
+        priorOutput: attempt.current.output,
         revisionRequest: `${input.revisionRequest}\n${instruction} Preserve every lock exactly.`,
       });
-      current = await buildIncrementally(output);
-      await fitOverflow();
-      if (
-        current.rendered.render.status === 'ready' &&
-        (!best || current.rendered.pageFill > best.rendered.pageFill)
-      )
-        best = current;
+      attempt = await buildIncrementally(output);
+      if (attempt.retained && (!best || quality(attempt.retained) > quality(best)))
+        best = attempt.retained;
     } catch (error) {
       if (
         !(error instanceof AgentFailure) ||
         ['CANCELLED', 'AUTH_REQUIRED', 'USAGE_LIMIT'].includes(error.code)
       )
         throw error;
-      (best ?? current).rendered.render.warnings.push(
+      (best ?? attempt.current).rendered.render.warnings.push(
         'Automatic content fitting stopped; retained the best compiled draft.',
       );
       break;
     }
   }
-  const chosen = best ?? current;
+  // Only after concise revisions fail, remove whole low-priority entries.
+  let chosen = best ?? attempt.current;
+  while (chosen.rendered.render.status === 'overflow' && trims++ < 16) {
+    const output = trimLowestPriority(input, chosen.output);
+    if (!output) break;
+    chosen = { output, rendered: await compile(output) };
+  }
+  if (counts(chosen.output).some((n) => n < 3)) {
+    const warning =
+      'The three-experience / three-project target was not met within verified evidence and a readable single page. Review source coverage and the omitted lower-priority records.';
+    chosen.output.warnings = [...new Set([warning, ...chosen.output.warnings])].slice(0, 40);
+    chosen.rendered.render.warnings.push(warning);
+  }
   const used = new Set(
     chosen.output.resume.sections.flatMap((s) =>
       s.entries.flatMap((e) => [e.sourceId, ...e.bullets.flatMap((b) => b.sourceIds)]),

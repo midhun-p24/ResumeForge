@@ -8,8 +8,9 @@ The companion writes `Resume.tex` and compiles it to `Resume.pdf` locally.
 supplied `JakesResumeTemplate.tex`, with line endings normalized to LF. Its SHA-256 is
 `8dcdc011da653cb8db26ed7d644ae52866f701b491c8382ccb1965b8ea662461`.
 A regression test verifies this digest. The original document class, font choices, packages,
-margin adjustments, section rules, header styling, list spacing, and heading/item commands
-are retained. The sample personal body is replaced by a controlled structured-content renderer.
+margin adjustments, section rules and heading/item commands are retained. Since 0.3.8,
+owner-requested controlled overrides compact list/section spacing and reduce the name from Huge
+to huge. GitHub and LinkedIn use short clickable labels; the redundant contact location is omitted. The sample personal body is replaced by a controlled structured-content renderer.
 The canonical layout is application code; model output cannot change it.
 
 The supplied source uses pdfTeX-only `pdfglyphtounicode` and `pdfgentounicode` commands.
@@ -60,7 +61,7 @@ visual check. The sample passed with `ready`, one page, text verified, and no wa
 
 The owner explicitly requested activation. New generations and explicit renders use
 `jake-v1`; existing saved PDFs remain immutable. Companion installations must update
-to 0.3.7 because rendering occurs on each user's computer. Codex ranks experience/research
+to 0.3.8 because rendering occurs on each user's computer. Codex ranks experience/research
 and project candidates independently. The fitter adds one experience and one project
-at a time; every included unlocked entry has at least three distinct supported bullets. The bounded fitting pass uses the compiled page to expand
+at a time; every included unlocked entry has exactly three distinct supported bullets. The bounded fitting pass uses the compiled page to expand
 or shorten content without changing the supplied template's fonts or margins.

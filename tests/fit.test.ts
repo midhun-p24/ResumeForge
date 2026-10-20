@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { fitResume, trimLowestPriority } from '../apps/companion/src/fit';
-import { minimumBulletIssues } from '../apps/companion/src/content-policy';
+import { minimumBulletIssues, numericBulletIssues } from '../apps/companion/src/content-policy';
 import { validateEvidence, type AgentOutput } from '@resumeforge/contracts';
 import { fixture } from './fixtures';
 
@@ -9,7 +9,7 @@ const layout = (pageFill: number, status = 'ready') => ({
   pageFill,
   render: { status, pageCount: status === 'overflow' ? 2 : 1, warnings: [] as string[] },
 });
-function pool() {
+function pool(count = 3) {
   const { input, output } = fixture();
   const base = input.profile.records[0];
   input.profile.records = [];
@@ -17,7 +17,7 @@ function pool() {
   output.resume.sections = [];
   for (const kind of ['experience', 'project'] as const) {
     const entries = [];
-    for (let n = 0; n < 3; n++) {
+    for (let n = 0; n < count; n++) {
       const id = kind === 'experience' && n === 0 ? base.id : randomUUID();
       input.profile.records.push({ ...base, id, kind, metrics: [] });
       output.selectedSourceIds.push(id);
@@ -46,6 +46,7 @@ it('builds one experience and one project at a time, retaining three bullets eac
   expect(counts).toEqual([
     [1, 1],
     [2, 2],
+    [3, 3],
   ]);
   expect(revise).not.toHaveBeenCalled();
   expect(minimumBulletIssues(input, result.output)).toEqual([]);
@@ -88,6 +89,7 @@ it('keeps locked legacy entries unchanged and does not rewrite manual renders', 
   input.lockedSectionIds = [output.resume.sections[0].id];
   expect(minimumBulletIssues(input, output)).toEqual([]);
   expect(trimLowestPriority(input, output)).toBeNull();
+  revise.mockResolvedValue(output);
   const locked = await fitResume(input, output, async () => layout(0.95), revise);
   expect(locked.output.resume).toEqual(output.resume);
   expect(locked.output.warnings.join(' ')).toContain('Locked legacy content');
@@ -118,4 +120,85 @@ it('retains the best clean page when another pair overflows with locked content'
   const result = await fitResume(input, output, compile, async () => output);
   expect(result.rendered).toBe(original);
   expect(result.output).toEqual(output);
+});
+
+it('rejects four bullets even when all are distinct', () => {
+  const { input, output } = pool();
+  const e = output.resume.sections[0].entries[0];
+  e.bullets.push({ ...e.bullets[0], id: randomUUID(), text: 'Wrote operational documentation.' });
+  expect(minimumBulletIssues(input, output)).toHaveLength(1);
+});
+it('tries the third pair above 90 percent and compresses overflow before discarding it', async () => {
+  const { input, output } = pool();
+  let revised = false;
+  const compile = vi.fn(async (o: AgentOutput) => {
+    const count = o.resume.sections[0].entries.length;
+    return layout(count === 3 ? 0.99 : 0.94, count === 3 && !revised ? 'overflow' : 'ready');
+  });
+  const revise = vi.fn(async () => {
+    revised = true;
+    return output;
+  });
+  const result = await fitResume(input, output, compile, revise);
+  expect(result.output.resume.sections.map((s) => s.entries.length)).toEqual([3, 3]);
+  expect(revise).toHaveBeenCalledTimes(1);
+});
+
+it('retains three complete pairs when the fourth pair overflows after compression', async () => {
+  const { input, output } = pool(4);
+  const attempted: number[] = [];
+  const result = await fitResume(
+    input,
+    output,
+    async (candidate) => {
+      const n = candidate.resume.sections[0].entries.length;
+      attempted.push(n);
+      return layout(n / 3, n > 3 ? 'overflow' : 'ready');
+    },
+    async () => output,
+  );
+  expect(attempted).toContain(4);
+  expect(result.output.resume.sections.map((s) => s.entries.length)).toEqual([3, 3]);
+  expect(
+    result.output.resume.sections.flatMap((s) => s.entries).every((e) => e.bullets.length === 3),
+  ).toBe(true);
+  expect(result.output.selectedSourceIds).toHaveLength(6);
+});
+
+it('pinpoints uncited numeric claims for repair without accepting them', () => {
+  const { input, output } = pool();
+  const bullet = output.resume.sections[0].entries[0].bullets[0];
+  bullet.text = 'Reduced latency by 99%.';
+  expect(numericBulletIssues(input, output)[0]).toContain(bullet.id);
+  expect(validateEvidence(input, output)).toContain(
+    'Numeric bullet claim lacks an approved metric',
+  );
+});
+
+it('reserves space for three pairs by removing only an unlocked fourth skill category', async () => {
+  const { input, output } = pool();
+  const entries = Array.from({ length: 4 }, () => {
+    const id = randomUUID();
+    input.profile.records.push({
+      ...input.profile.records[0],
+      id,
+      kind: 'skill',
+      technologies: ['TypeScript'],
+    });
+    output.selectedSourceIds.push(id);
+    return { sourceId: id, bullets: [] };
+  });
+  const skillSection = { id: randomUUID(), title: 'Technical Skills', entries };
+  output.resume.sections.unshift(skillSection);
+  const compile = async (candidate: AgentOutput) => {
+    const skills = candidate.resume.sections[0].entries.length;
+    const experiences = candidate.resume.sections[1].entries.length;
+    return layout(0.96, skills > 3 && experiences >= 3 ? 'overflow' : 'ready');
+  };
+  const result = await fitResume(input, output, compile, async () => output);
+  expect(result.output.resume.sections.map((s) => s.entries.length)).toEqual([3, 3, 3]);
+  input.lockedSectionIds = [skillSection.id];
+  const locked = await fitResume(input, output, compile, async () => output);
+  expect(locked.output.resume.sections[0]).toEqual(skillSection);
+  expect(locked.output.warnings.join(' ')).toContain('target was not met');
 });

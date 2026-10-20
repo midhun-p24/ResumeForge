@@ -65,7 +65,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.7.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.8.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup
@@ -135,3 +135,16 @@ Public production does not require Vercel authentication or that extra credentia
 Task directories under ~/.resumeforge/tasks are removed on success/failure. Crashes and Codex's
 own local session retention can leave private local files; protect your OS account and clean
 stale work only when no task is active. There is no plaintext device-credential fallback.
+
+## 0.3.8: ranked pairs with exactly three bullets
+
+Tailoring ranks all eligible experiences/research and projects independently for the posting.
+Each unlocked included entry must have exactly three distinct supported accomplishment bullets.
+The fitter tries successive ranked pairs until actual compilation overflows, without a 90% fill
+cutoff. A lower-priority fourth skill category may be removed to reserve space for core entries.
+Up to two bounded revision turns shorten wording when the three-pair minimum does not fit.
+The target is at least three entries per category; evidence shortages or page constraints produce
+an explicit warning rather than invented content. Education and relevant skills remain included.
+Jake's original source and license are retained with owner-requested compact list/section spacing,
+a slightly smaller name and short clickable contact labels. Body type and page margins stay fixed.
+Existing locks take precedence and manual renders do not rewrite content.

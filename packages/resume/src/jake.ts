@@ -57,10 +57,12 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
     profile.contact.email
       ? `\\href{mailto:${e(profile.contact.email)}}{\\underline{${e(profile.contact.email)}}}`
       : '',
-    e(profile.contact.location),
     ...profile.contact.links
       .filter(Boolean)
-      .map((url) => `\\href{${e(url)}}{\\underline{${e(url.replace(/^https?:\/\//i, ''))}}}`),
+      .map(
+        (url) =>
+          `\\href{${e(url)}}{\\underline{${e(/github\.com/i.test(url) ? 'GitHub' : /linkedin\.com/i.test(url) ? 'LinkedIn' : url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))}}}`,
+      ),
   ]
     .filter(Boolean)
     .join(' $|$ ');
@@ -147,10 +149,15 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
   return (
     JAKE_TECTONIC_COMPATIBILITY +
     JAKE_TEMPLATE_PREAMBLE +
+    String.raw`% User-requested compact spacing; original Jake preamble retained above.
+\titlespacing*{\section}{0pt}{10pt}{8pt}
+\renewcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in,label={},itemsep=1pt,topsep=4pt,parsep=0pt]}
+\renewcommand{\resumeItemListStart}{\begin{itemize}[itemsep=1pt,topsep=8pt,parsep=0pt]}
+` +
     notices +
     '\n% ResumeForge controlled body; synthetic review or user-approved facts only.\n' +
     '\\begin{document}\n\\begin{center}\n' +
-    `\\textbf{\\Huge \\scshape ${e(profile.contact.name)}} \\\\ \\vspace{1pt}\n\\small ${contact}\n` +
+    `\\textbf{\\huge \\scshape ${e(profile.contact.name)}} \\\\ \\vspace{1pt}\n\\small ${contact}\n` +
     `\\end{center}\n\n${sections.join('\n\n')}\n\\end{document}\n`
   );
 }
