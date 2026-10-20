@@ -60,7 +60,7 @@ visual check. The sample passed with `ready`, one page, text verified, and no wa
 
 The owner explicitly requested activation. New generations and explicit renders use
 `jake-v1`; existing saved PDFs remain immutable. Companion installations must update
-to 0.3.4 because rendering occurs on each user's computer. Codex ranks experience/research
-and project candidates independently, considering the first four relevant approved records
-in each group when available. The bounded fitting pass uses the compiled page to expand
+to 0.3.7 because rendering occurs on each user's computer. Codex ranks experience/research
+and project candidates independently. The fitter adds one experience and one project
+at a time; every included unlocked entry has at least three distinct supported bullets. The bounded fitting pass uses the compiled page to expand
 or shorten content without changing the supplied template's fonts or margins.

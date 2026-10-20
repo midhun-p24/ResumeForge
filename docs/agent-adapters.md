@@ -26,7 +26,10 @@ The companion writes `Resume.tex` and compiles `Resume.pdf` locally. See
 
 One validation repair turn is allowed per generation call. At most two additional fitting
 turns expand sparse pages or shorten overflow, preserving locks and source exclusions.
-The fullest valid one-page candidate is retained; font size and margins are never reduced.
+The fitter adds one ranked experience and one project per step. Every unlocked included
+experience/project must have at least three distinct supported bullets. It can remove extra
+bullets down to three, then remove whole lower-priority records. The fullest valid one-page
+candidate is retained; font size and margins are never reduced.
 
 On SDK/CLI upgrades rerun live synthetic checks, including tool restrictions. The root
 `mcp_servers={}` TOML override replaces inherited MCP transports. Adding disabled entries

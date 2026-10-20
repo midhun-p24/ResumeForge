@@ -55,7 +55,11 @@ if (process.argv.includes('--pdf')) {
     JSON.stringify({
       ...rendered.render,
       pageFill: rendered.pageFill,
-      sections: output.resume.sections.map((s) => ({ title: s.title, entries: s.entries.length })),
+      sections: output.resume.sections.map((s) => ({
+        title: s.title,
+        entries: s.entries.length,
+        bulletCounts: s.entries.map((e) => e.bullets.length),
+      })),
     }),
   );
   console.log(`Synthetic review artifacts: ${dir}`);

@@ -13,6 +13,7 @@ import {
 } from '@resumeforge/contracts';
 import type { AgentOutput, TaskInput, ImportTaskInput, ImportOutput } from '@resumeforge/contracts';
 import { execFile, localEnvironment } from './process';
+import { minimumBulletIssues } from './content-policy';
 import { createRequire } from 'node:module';
 
 export interface AgentAdapter {
@@ -79,10 +80,16 @@ Include education when approved evidence exists; omit relevant coursework and co
 Populate Technical Skills with relevant approved skill categories and their actual technologies;
 never emit an empty category label. Include multiple relevant categories, not just Languages.
 Rank experience/research and projects independently against the posting.
-Consider the first, second, third, and fourth most relevant experience/research records and
-the first, second, third, and fourth most relevant projects when that many approved records exist.
-Start with these ranked candidates in relevance order within each section; do not stop at one
-project. Order bullets within each entry from most to least relevant and substantive.
+Return a ranked candidate pool in relevance order within the experience/research and projects
+sections. The application builds the page incrementally: first the best experience and best
+project, then the next experience and next project, one of each at a time while space permits.
+Every included experience, research entry and project MUST have at least three distinct,
+substantive, supported accomplishment bullets. Prefer depth in a few strong records over many
+shallow entries. If a record cannot support three honest bullets, omit it and explain why in
+warnings; never split one fact into repetitive bullets, pad, or invent details to meet the count.
+Education and skill categories do not require three bullets. Existing locked content takes
+precedence; preserve it and warn if it prevents satisfying the minimum.
+Order bullets within each entry from most to least relevant and substantive.
 Fit them through concise, substantive bullets, then omit lower-priority content only
 when necessary for one page. The renderer fills the supplied Jake template's existing commands;
 you replace content only and cannot create a different layout or template.
@@ -303,7 +310,7 @@ END_UNTRUSTED_NUMBERED_RESUME`;
       try {
         const parsed = parseGeneratedAgentOutput(JSON.parse(response));
         retained = parsed;
-        errors = validateEvidence(input, parsed);
+        errors = [...validateEvidence(input, parsed), ...minimumBulletIssues(input, parsed)];
         if (!errors.length) {
           await onStage('Writing resume');
           return parsed;

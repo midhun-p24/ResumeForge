@@ -1,5 +1,12 @@
 import type { AgentOutput, TaskInput } from '@resumeforge/contracts';
 import { AgentFailure } from './adapter';
+import {
+  contentKind,
+  pinnedEntry,
+  minimumBulletIssues,
+  MIN_ENTRY_BULLETS,
+  hasShallowLockedEntry,
+} from './content-policy';
 
 type Layout = {
   render: { status: string; pageCount: number; warnings: string[] };
@@ -13,7 +20,8 @@ export function trimLowestPriority(input: TaskInput, output: AgentOutput): Agent
     !input.lockedSectionIds.includes(section.id);
   for (const section of sections.filter(eligible)) {
     for (const entry of [...section.entries].reverse()) {
-      if (entry.bullets.length < 2) continue;
+      if (!contentKind(input, entry.sourceId) || entry.bullets.length <= MIN_ENTRY_BULLETS)
+        continue;
       const index = entry.bullets.findLastIndex((b) => !input.lockedBulletIds.includes(b.id));
       if (index < 0) continue;
       entry.bullets.splice(index, 1);
@@ -44,9 +52,58 @@ export async function fitResume<T extends Layout>(
   compile: (output: AgentOutput) => Promise<T>,
   revise: (input: TaskInput) => Promise<AgentOutput>,
 ): Promise<{ output: AgentOutput; rendered: T }> {
-  let current = { output: initial, rendered: await compile(initial) };
-  if (input.operation === 'render') return current;
+  if (input.operation === 'render') return { output: initial, rendered: await compile(initial) };
+  if (minimumBulletIssues(input, initial).length) throw new AgentFailure('INVALID_OUTPUT', initial);
   let trims = 0;
+  async function buildIncrementally(candidate: AgentOutput) {
+    if (minimumBulletIssues(input, candidate).length)
+      throw new AgentFailure('INVALID_OUTPUT', candidate);
+    const queues = { experience: [] as string[], project: [] as string[] };
+    for (const section of candidate.resume.sections)
+      for (const entry of section.entries) {
+        const kind = contentKind(input, entry.sourceId);
+        if (kind && !pinnedEntry(input, section.id, entry.bullets))
+          queues[kind].push(entry.sourceId);
+      }
+    const selected = new Set<string>();
+    let retained: { output: AgentOutput; rendered: T } | null = null;
+    const steps = Math.min(6, Math.max(1, queues.experience.length, queues.project.length));
+    for (let step = 0; step < steps; step++) {
+      for (const kind of ['experience', 'project'] as const)
+        if (queues[kind][step]) selected.add(queues[kind][step]);
+      const output = structuredClone(candidate);
+      if (hasShallowLockedEntry(input, output))
+        output.warnings = [
+          ...new Set([
+            'Locked legacy content has fewer than three bullets per entry and was preserved. Unlock it to revise under the new minimum.',
+            ...output.warnings,
+          ]),
+        ].slice(0, 40);
+      output.resume.sections = output.resume.sections
+        .map((section) => ({
+          ...section,
+          entries: section.entries.filter(
+            (entry) =>
+              !contentKind(input, entry.sourceId) ||
+              pinnedEntry(input, section.id, entry.bullets) ||
+              selected.has(entry.sourceId),
+          ),
+        }))
+        .filter((s) => s.entries.length);
+      let current = { output, rendered: await compile(output) };
+      while (current.rendered.render.status === 'overflow' && trims < 16) {
+        const trimmed = trimLowestPriority(input, current.output);
+        if (!trimmed) break;
+        trims++;
+        current = { output: trimmed, rendered: await compile(trimmed) };
+      }
+      if (current.rendered.render.status !== 'ready') return retained ?? current;
+      if (!retained || current.rendered.pageFill > retained.rendered.pageFill) retained = current;
+      if (current.rendered.pageFill >= 0.9) break;
+    }
+    return retained!;
+  }
+  let current = await buildIncrementally(initial);
   async function fitOverflow() {
     while (current.rendered.render.status === 'overflow' && trims < 16) {
       const output = trimLowestPriority(input, current.output);
@@ -65,8 +122,8 @@ export async function fitResume<T extends Layout>(
     )
       break;
     const instruction = overflow
-      ? `The draft is ${current.rendered.render.pageCount} pages. Shorten lower-priority unlocked bullets or remove the least relevant unlocked content until one page fits. Preserve the strongest evidence and substantive technical skills.`
-      : `The compiled draft uses only ${Math.round(current.rendered.pageFill * 100)}% of usable page height. Fill remaining space with distinct supported accomplishments for the strongest selected experience/projects, then the next most relevant approved record. Populate approved technical skills. Omit coursework. Do not pad, repeat, invent, or alter font size/margins.`;
+      ? `The draft is ${current.rendered.render.pageCount} pages. Shorten wording or remove whole lower-priority unlocked entries. Keep at least three substantive supported bullets per experience/project; never cut an entry below three to fit. Preserve strongest evidence, education and skills.`
+      : `The compiled draft uses only ${Math.round(current.rendered.pageFill * 100)}% of usable page height. Strengthen supported bullets, then propose the next most relevant experience and next project, one of each at a time. Every included experience/project needs at least three distinct supported bullets. Populate approved technical skills; omit coursework. Do not pad, repeat, invent, or alter font size/margins.`;
     try {
       const output = await revise({
         ...input,
@@ -74,7 +131,7 @@ export async function fitResume<T extends Layout>(
         priorOutput: current.output,
         revisionRequest: `${input.revisionRequest}\n${instruction} Preserve every lock exactly.`,
       });
-      current = { output, rendered: await compile(output) };
+      current = await buildIncrementally(output);
       await fitOverflow();
       if (
         current.rendered.render.status === 'ready' &&
@@ -93,5 +150,12 @@ export async function fitResume<T extends Layout>(
       break;
     }
   }
-  return best ?? current;
+  const chosen = best ?? current;
+  const used = new Set(
+    chosen.output.resume.sections.flatMap((s) =>
+      s.entries.flatMap((e) => [e.sourceId, ...e.bullets.flatMap((b) => b.sourceIds)]),
+    ),
+  );
+  chosen.output.selectedSourceIds = chosen.output.selectedSourceIds.filter((id) => used.has(id));
+  return chosen;
 }

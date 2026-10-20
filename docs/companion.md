@@ -1,5 +1,17 @@
 # Companion installation and connection
 
+## 0.3.7: relevance and depth before breadth
+
+The fitter starts with the best experience/research entry and best project, then
+adds the next experience and next project one at a time. Every included unlocked
+experience or project needs at least three distinct supported bullets. Extra bullets
+can be trimmed down to three; whole lower-priority entries are removed before the
+minimum is violated. Records without enough verified evidence must be omitted with
+an explanation, never padded or fabricated. Education and skills are exempt.
+Existing locked legacy content is preserved, and manual renders do not rewrite it.
+Each candidate pool has at most six incremental fitting steps, sixteen total
+content trims, and two additional model turns. The supplied Jake template stays fixed.
+
 ## 0.3.6: retain ranked entries while fitting
 
 The fitter can remove existing unlocked bullets one at a time, compiling after each
@@ -53,7 +65,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.6.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.7.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup
