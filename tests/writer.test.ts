@@ -3,6 +3,7 @@ import type { ResumeDoc } from '@resumeforge/contracts';
 import {
   draftMessage,
   fitByTrimming,
+  insertMissingSkills,
   missingAwards,
   missingPostingSkills,
   missingSourcedKeywords,
@@ -366,4 +367,14 @@ it('names placed awards that are missing from the honors line', () => {
     '1st Place, NASA MINDS 2025 Paper; 1st Place, IEEE SMC 2026 Hackathon',
   ];
   expect(missingAwards(input, doc)).toEqual([]);
+});
+
+it('inserts sourced posting skills at the front of the matching row in source form', () => {
+  const { input, doc } = docFixture();
+  input.profile.masterText += '\nLanguages: TypeScript, SQL, HTML/CSS, Bash';
+  input.job.description += ' Front-end experience with HTML and CSS.';
+  const next = insertMissingSkills(input, doc);
+  expect(next.sections[1].skills[0].items).toBe('HTML/CSS, TypeScript, SQL');
+  expect(insertMissingSkills(input, next)).toBe(next);
+  expect(doc.sections[1].skills[0].items).toBe('TypeScript, SQL');
 });

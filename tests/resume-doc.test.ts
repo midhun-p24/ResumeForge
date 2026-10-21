@@ -130,3 +130,12 @@ describe('page layout measurement', () => {
     expect(wrappedSkillRows(items, ['Languages', 'Frameworks'])).toEqual(['Languages']);
   });
 });
+
+it('never lets line breaks in model text become TeX paragraph breaks', () => {
+  const { input, doc } = docFixture();
+  doc.sections[2].entries[0].bullets[0] = 'Cut duplicate processing by **25%**\n\n with a queue.';
+  doc.sections[2].entries[0].heading = 'Software\nIntern';
+  const tex = renderLatex(input.profile, doc);
+  expect(tex).toContain('\\resumeItem{Cut duplicate processing by \\textbf{25\\%} with a queue.}');
+  expect(tex).toContain('\\resumeSubheading{Software Intern}');
+});

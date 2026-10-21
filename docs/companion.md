@@ -1,5 +1,16 @@
 # Companion installation and connection
 
+## 0.5.5: whitespace-safe rendering, deterministic skills
+
+- Line breaks inside model text are collapsed before rendering. A newline in a bullet had become
+  a TeX paragraph break, leaving a visible blank gap inside an entry.
+- Sourced skills the posting asks for (for example HTML/CSS) are inserted by the companion at the
+  front of the matching skills row, in the sources' own item form, instead of relying on the
+  model to follow a request. An item is added only when it names the skill exactly ("Tailwind
+  CSS" is not added for CSS); a skill whose source category has no row gets a row named after
+  that category while there is room. Layout checks then catch a row that grows too long.
+- The per-turn log counts the honors edit in its total.
+
 ## 0.5.4: keep metrics and awards, add posting skills, fewer wasted turns
 
 The first page that 0.5.3 produced on free Codex was full and clean, but two later
@@ -155,7 +166,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.4.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.5.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

@@ -151,7 +151,11 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
 }
 
 /** Escape a v2 bullet, turning balanced **double-asterisk** spans into bold. */
-export function renderDocBullet(text: string): string {
+// A line break inside model text would become a TeX paragraph break (a visible blank gap).
+const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+export function renderDocBullet(raw: string): string {
+  const text = oneLine(raw);
   const parts = text.split('**');
   // An unbalanced marker is shown literally rather than guessing which span was meant.
   if (parts.length % 2 === 0) return escapeLatex(text);
@@ -162,7 +166,7 @@ export function renderDocBullet(text: string): string {
 
 /** Version 2 documents: the writer chose every heading, date, location and stack. */
 export function renderJakeDoc(profile: Profile, doc: ResumeDoc): string {
-  const e = escapeLatex;
+  const e = (text: string) => escapeLatex(oneLine(text));
   const bulletList = (bullets: string[]) =>
     bullets.length
       ? '\n\\resumeItemListStart\n' +

@@ -269,6 +269,47 @@ export function missingPostingSkills(input: TaskInput, doc: ResumeDoc): string[]
   );
   return [...new Set(missing.map((t) => t.trim()))].slice(0, 10);
 }
+/**
+ * Put sourced skills the posting asks for at the front of the matching skills row, using the
+ * sources' own item form ("HTML/CSS") and row (by category name, else the first row). Layout
+ * checks then catch a row that grows too long.
+ */
+export function insertMissingSkills(input: TaskInput, doc: ResumeDoc): ResumeDoc {
+  const missing = missingPostingSkills(input, doc);
+  const rows = doc.sections.flatMap((s) => s.skills);
+  if (!missing.length || !rows.length) return doc;
+  const next = structuredClone(doc);
+  const nextRows = next.sections.flatMap((s) => s.skills);
+  const added = new Set<string>();
+  for (const line of candidateText(input).split(/\r?\n/)) {
+    if (!/:\s*[^,]+(,[^,]+){2,}/.test(line)) continue;
+    const label = line.slice(0, line.indexOf(':')).trim();
+    const matching = nextRows.find((r) => {
+      const words = r.category.toLowerCase().match(/[a-z]{4,}/g) ?? [];
+      return words.some((w) => label.toLowerCase().includes(w));
+    });
+    for (const item of line
+      .slice(line.indexOf(':') + 1)
+      .split(/[,;]/)
+      .map((i) => i.trim())) {
+      // "HTML/CSS" names CSS; "Tailwind CSS" does not, so it is never added for CSS.
+      const parts = item.split('/').map((p) => p.trim().toLowerCase());
+      if (!item || added.has(item) || !missing.some((m) => parts.includes(m.toLowerCase())))
+        continue;
+      added.add(item);
+      let row = matching;
+      // No row for this category: add one named after the source category while there is room.
+      if (!row && nextRows.length < 5) {
+        row = { category: label, items: '' };
+        next.sections.find((s) => s.kind === 'skills')!.skills.push(row);
+        nextRows.push(row);
+      }
+      row ??= nextRows[0];
+      row.items = row.items ? `${item}, ${row.items}` : item;
+    }
+  }
+  return added.size ? next : doc;
+}
 const awardStopwords = new Set(['First', 'Second', 'Third', 'Place', 'Team', 'Award', 'The']);
 /** Placed awards in the sources whose distinctive names never reach the education honors line. */
 export function missingAwards(input: TaskInput, doc: ResumeDoc): string[] {
@@ -439,7 +480,9 @@ export async function writeResume<T extends Measured>(
     }
   };
   /** Validate, compile, fit and record a candidate; returns why it was rejected, if it was. */
-  const consider = async (doc: ResumeDoc, turn: number): Promise<string | null> => {
+  const consider = async (proposed: ResumeDoc, turn: number): Promise<string | null> => {
+    let doc = insertMissingSkills(input, proposed);
+    if (doc !== proposed) log(`Turn ${turn}: added sourced posting skills to the skills rows`);
     lastDoc = doc;
     diagnostics = validateDoc(input, doc);
     if (diagnostics.length) {
@@ -526,7 +569,7 @@ export async function writeResume<T extends Measured>(
     }
     const { doc, applied } = applyEdits(base.doc, edits);
     log(
-      `Turn ${turn}: applied ${applied} of ${edits.bullets.length + edits.skills.length + edits.headings.length} edits`,
+      `Turn ${turn}: applied ${applied} of ${edits.bullets.length + edits.skills.length + edits.headings.length + (edits.honors.trim() ? 1 : 0)} edits`,
     );
     if (!applied) {
       note = '\nNone of your last edits matched: copy each original line exactly from the JSON.';
