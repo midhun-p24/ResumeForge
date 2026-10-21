@@ -4,6 +4,7 @@ import {
   draftMessage,
   fitByTrimming,
   missingSourcedKeywords,
+  applyEdits,
   polishFeedback,
   removalOrder,
   trimTo,
@@ -18,6 +19,7 @@ const measured = (over: Partial<Measured> = {}): Measured => ({
   render: { status: 'ready', pageCount: 1, warnings: [] },
   pageFill: 0.97,
   shortBullets: [],
+  shortTails: [],
   wrappedSkills: [],
   headingCollisions: [],
   overflowLines: 0,
@@ -32,7 +34,7 @@ const wire = (doc: ResumeDoc) => {
   return rest;
 };
 function session(...replies: unknown[]) {
-  const send = vi.fn<(text: string) => Promise<unknown>>();
+  const send = vi.fn<(text: string, schema?: unknown) => Promise<unknown>>();
   for (const reply of replies) send.mockResolvedValueOnce(reply);
   return { send } satisfies WriterSession;
 }
@@ -116,29 +118,44 @@ it('trims an over-full draft deterministically instead of asking the model to gu
   expect(lines.at(-1)).toContain('Chosen: 1 page, 97% full');
 });
 
-it('polishes named lines on the fitted page and keeps the better result', async () => {
+it('polishes with small edits on the fitted page instead of a full rewrite', async () => {
   const { input, doc } = docFixture();
-  const polished = structuredClone(doc);
-  polished.sections[2].entries[0].bullets[0] = 'Cut duplicate processing by **25%** with a queue.';
-  const s = session(wire(doc), wire(polished));
+  const original = doc.sections[2].entries[0].bullets[0];
+  const replacement = 'Cut duplicate processing by **25%** with a queue.';
+  const edits = {
+    bullets: [{ original: original.replaceAll('**', ''), replacement }],
+    skills: [],
+    headings: [],
+  };
+  const s = session(wire(doc), edits);
   const compile = vi
     .fn()
-    .mockResolvedValueOnce(measured({ shortBullets: [doc.sections[2].entries[0].bullets[0]] }))
+    .mockResolvedValueOnce(
+      measured({ shortBullets: [original], shortTails: ['TypeScript task queue.'] }),
+    )
     .mockResolvedValue(measured());
   const result = await writeResume(input, s, compile, stage);
-  const second = s.send.mock.calls[1][0];
-  expect(second).toContain('end with only one to three words');
-  expect(second).toContain('<current_resume_json>');
-  expect(result.doc.sections[2].entries[0].bullets[0]).toBe(
-    polished.sections[2].entries[0].bullets[0],
-  );
+  const [prompt, schema] = s.send.mock.calls[1];
+  expect(prompt).toContain('ends with only "TypeScript task queue." on its last line');
+  expect(prompt).toContain('Cut at least 26 characters');
+  expect(prompt).toContain('<current_resume_json>');
+  expect(schema).toBeDefined();
+  expect(result.doc.sections[2].entries[0].bullets[0]).toBe(replacement);
+  expect(s.send).toHaveBeenCalledTimes(2);
 });
 
 it('never replaces a good page with a worse polish attempt', async () => {
   const { input, doc } = docFixture();
-  const worse = structuredClone(doc);
-  worse.sections[3].entries[0].bullets = ['Built a dashboard.'];
-  const s = session(wire(doc), wire(worse));
+  const s = session(wire(doc), {
+    bullets: [
+      {
+        original: 'Built a React and Node.js dashboard monitoring 40 queues.',
+        replacement: 'Built a dashboard.',
+      },
+    ],
+    skills: [],
+    headings: [],
+  });
   const compile = vi
     .fn()
     .mockResolvedValueOnce(measured({ pageFill: 0.95, shortBullets: ['x'] }))
@@ -147,7 +164,71 @@ it('never replaces a good page with a worse polish attempt', async () => {
   expect(result.doc.sections).toEqual(doc.sections);
 });
 
-it('names sparse space, widows, wrapped skills, collisions, missing keywords and missing bold', () => {
+it('asks for a fuller document when the fitted page is sparse', async () => {
+  const { input, doc } = docFixture();
+  const fuller = generous().doc;
+  const s = session(wire(doc), wire(fuller));
+  const compile = vi.fn(async (d: ResumeDoc) =>
+    measured({ pageFill: bulletCount(d) > 2 ? 0.97 : 0.7 }),
+  );
+  const result = await writeResume(input, s, compile, stage);
+  expect(s.send.mock.calls[1][0]).toContain('only 70% full');
+  expect(s.send.mock.calls[1][1]).toBeUndefined();
+  expect(bulletCount(result.doc)).toBeGreaterThan(2);
+});
+
+it('skips a candidate that fails to compile and keeps the best page', async () => {
+  const { input, doc } = docFixture();
+  const { AgentFailure } = await import('../apps/companion/src/adapter');
+  const edits = {
+    bullets: [
+      {
+        original: 'Cut duplicate processing by 25% with a TypeScript task queue.',
+        replacement: 'Cut duplicates by **25%** with a TypeScript queue.',
+      },
+    ],
+    skills: [],
+    headings: [],
+  };
+  const lines: string[] = [];
+  const s = session(wire(doc), edits);
+  const compile = vi
+    .fn()
+    .mockResolvedValueOnce(measured({ shortBullets: ['x'] }))
+    .mockRejectedValueOnce(
+      new AgentFailure('COMPILE_FAILED', null, undefined, ['! Undefined control sequence.']),
+    );
+  const result = await writeResume(input, s, compile, stage, 2, (l) => lines.push(l));
+  expect(lines.join('\n')).toContain(
+    'Compile failed, candidate skipped: ! Undefined control sequence.',
+  );
+  expect(result.doc.sections).toEqual(doc.sections);
+});
+
+it('applies bullet, skills and heading edits by matching original text', () => {
+  const { doc } = docFixture();
+  const { doc: next, applied } = applyEdits(doc, {
+    bullets: [
+      {
+        original: '  built a react and node.js dashboard monitoring 40 queues. ',
+        replacement: 'New text.',
+      },
+      { original: 'No such bullet', replacement: 'Ignored.' },
+    ],
+    skills: [{ category: 'languages', items: 'TypeScript, SQL, JavaScript' }],
+    headings: [{ original: 'Queue Visualizer', heading: 'Queue Viewer', stack: 'React' }],
+  });
+  expect(applied).toBe(3);
+  expect(next.sections[3].entries[0]).toMatchObject({
+    heading: 'Queue Viewer',
+    stack: 'React',
+    bullets: ['New text.'],
+  });
+  expect(next.sections[1].skills[0].items).toBe('TypeScript, SQL, JavaScript');
+  expect(doc.sections[3].entries[0].heading).toBe('Queue Visualizer');
+});
+
+it('names widows with targets, wrapped skills, collisions, missing keywords and missing bold', () => {
   const { input, doc } = docFixture();
   doc.keywords = [
     { keyword: 'PostgreSQL', covered: true, where: '' },
@@ -158,18 +239,18 @@ it('names sparse space, widows, wrapped skills, collisions, missing keywords and
   const text = polishFeedback(
     input,
     measured({
-      pageFill: 0.8,
       shortBullets: ['Built a dashboard.'],
+      shortTails: ['dashboard.'],
       wrappedSkills: ['Languages'],
       headingCollisions: ['Queue Visualizer'],
     }),
     doc,
   ).join(' ');
-  expect(text).toContain('80% full');
-  expect(text).toContain('"Built a dashboard."');
+  expect(text).toContain('"Built a dashboard." ends with only "dashboard."');
+  expect(text).toContain('Cut at least 14 characters');
   expect(text).toContain('Languages');
   expect(text).toContain('"Queue Visualizer"');
-  expect(text).toContain('appear in the sources but nowhere in the resume: PostgreSQL');
+  expect(text).toContain('in the sources but nowhere in the resume: PostgreSQL');
   expect(text).not.toContain('Kubernetes');
   expect(text).toContain('No bullet uses bold');
   expect(missingSourcedKeywords(input, doc)).toEqual(['PostgreSQL']);

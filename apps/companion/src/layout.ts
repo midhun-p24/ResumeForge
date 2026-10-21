@@ -27,13 +27,13 @@ const lineText = (line: TextItem[]) => line.map((t) => t.str).join('');
 /**
  * Bullets whose final wrapped line holds only a few words (a "widow" line). A bullet starts
  * with a "•" glyph and continues on following lines that begin at the bullet text indent.
- * Returns the matching texts from `bullets`.
+ * Returns each matching bullet with the words printed on its short last line.
  */
-export function shortWrappedBullets(
+export function shortWrappedLines(
   items: TextItem[],
   bullets: string[],
   shortFraction = 0.2,
-): string[] {
+): { bullet: string; tail: string }[] {
   const lines = textLines(items);
   const indents = lines.filter((l) => isBullet(l) && l.length > 1).map((l) => Math.round(l[1].x));
   if (!indents.length) return [];
@@ -41,7 +41,7 @@ export function shortWrappedBullets(
     (a, b) => indents.filter((v) => v === b).length - indents.filter((v) => v === a).length,
   )[0];
   const textWidth = Math.max(...lines.map(right)) - textX;
-  const found: string[] = [];
+  const found: { bullet: string; tail: string }[] = [];
   for (let i = 0; i < lines.length; i++) {
     if (!isBullet(lines[i])) continue;
     let j = i;
@@ -64,9 +64,20 @@ export function shortWrappedBullets(
       const target = squash(b);
       return target.length && (text.startsWith(target.slice(0, 30)) || target === text);
     });
-    if (bullet) found.push(bullet);
+    if (bullet)
+      found.push({
+        bullet,
+        tail: lines[j]
+          .map((t) => t.str)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim(),
+      });
   }
   return found;
+}
+export function shortWrappedBullets(items: TextItem[], bullets: string[]): string[] {
+  return shortWrappedLines(items, bullets).map((s) => s.bullet);
 }
 
 /** Skills rows ("Category: items") that spill onto a second printed line. */

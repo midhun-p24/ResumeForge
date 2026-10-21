@@ -1,5 +1,16 @@
 # Companion installation and connection
 
+## 0.5.3: edit-based polish, resilient compiles
+
+A live 0.5.2 run fitted the page to 99% in one turn, but each polish turn rewrote the whole
+document (20 lines over again) and a later compile failure ended the task, discarding the good
+page. Polish turns now use a small edits schema: the model returns only replacement bullets,
+skills rows or headings, matched to the fitted page by their original text, so a fitted page is
+never rewritten wholesale. Each short last line comes with the words printed on it and an exact
+character cut ("Cut at least 26 characters"). Full rewrites happen only to expand a sparse page or
+shorten one that cannot be fitted. A failed compile is retried once after a short pause, logs its
+TeX error lines, and skips that candidate instead of ending the task.
+
 ## 0.5.2: deterministic page fitting, targeted polish
 
 Live runs showed models overshooting in both directions when asked to fix fill (27 lines over,
@@ -126,7 +137,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.2.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.3.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

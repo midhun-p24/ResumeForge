@@ -8,7 +8,8 @@ import { AgentFailure, codexStatus, codexTurn, restrictedThread } from './adapte
 
 /** A multi-turn conversation that returns parsed JSON for each user turn. */
 export interface WriterSession {
-  send(text: string): Promise<unknown>;
+  /** `schema` overrides the session's default output schema for this turn only. */
+  send(text: string, schema?: unknown): Promise<unknown>;
 }
 export type ProviderId = 'codex' | 'claude';
 export const DEFAULT_CLAUDE_MODEL = 'claude-opus-5-5';
@@ -90,7 +91,10 @@ export function codexSession(
   model?: string,
 ): WriterSession {
   const thread = restrictedThread(workspace, system, model || undefined);
-  return { send: async (text) => parseJson(await codexTurn(thread, text, schema, signal)) };
+  return {
+    send: async (text, override) =>
+      parseJson(await codexTurn(thread, text, override ?? schema, signal)),
+  };
 }
 
 export function claudeErrorCode(error: unknown): string {
@@ -116,7 +120,8 @@ export function claudeSession(
   const client = new Anthropic({ apiKey: key });
   const messages: Anthropic.Beta.BetaMessageParam[] = [];
   return {
-    async send(text) {
+    async send(text, override) {
+      const format = (override ? portableSchema(override) : schema) as Record<string, unknown>;
       messages.push({ role: 'user', content: text });
       let message: Anthropic.Beta.BetaMessage;
       try {
@@ -130,7 +135,7 @@ export function claudeSession(
               thinking: { type: 'adaptive' },
               output_config: {
                 effort: 'high',
-                format: { type: 'json_schema', schema: schema as Record<string, unknown> },
+                format: { type: 'json_schema', schema: format },
               },
               // Sources sit in the first turn; caching the growing prefix keeps revisions cheap.
               cache_control: { type: 'ephemeral' },

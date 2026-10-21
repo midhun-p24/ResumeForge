@@ -11,7 +11,7 @@ import { execFile, localEnvironment } from './process';
 import { AgentFailure } from './adapter';
 import {
   headingCollisions,
-  shortWrappedBullets,
+  shortWrappedLines,
   textLines,
   wrappedSkillRows,
   type TextItem,
@@ -45,6 +45,8 @@ export type Compiled = {
   pageFill: number;
   /** v2 bullets whose last printed line holds only a few words. */
   shortBullets: string[];
+  /** The words printed on each short last line, aligned with `shortBullets`. */
+  shortTails: string[];
   /** v2 entry headings that run into their right-aligned date. */
   headingCollisions: string[];
   /** v2 skills categories whose row wraps onto a second line. */
@@ -64,38 +66,62 @@ export async function compileResume(
   await onStage('Rendering PDF');
   const source = join(workspace, 'Resume.tex');
   await writeFile(source, renderLatex(profile, output, template), { mode: 0o600 });
-  let result;
-  try {
-    result = await execFile(
-      tectonicPath(),
-      [
-        '-X',
-        'compile',
-        '--untrusted',
-        '--keep-logs',
-        ...(allowDownload ? [] : ['--only-cached']),
-        source,
-      ],
-      {
-        cwd: workspace,
-        signal,
-        timeout: 60000,
-        env: { ...localEnvironment(), TECTONIC_UNTRUSTED_MODE: '1' },
-      },
-    );
-  } catch (e) {
+  const run = async () => {
+    try {
+      return await execFile(
+        tectonicPath(),
+        [
+          '-X',
+          'compile',
+          '--untrusted',
+          '--keep-logs',
+          ...(allowDownload ? [] : ['--only-cached']),
+          source,
+        ],
+        {
+          cwd: workspace,
+          signal,
+          timeout: 60000,
+          env: { ...localEnvironment(), TECTONIC_UNTRUSTED_MODE: '1' },
+        },
+      );
+    } catch (e) {
+      throw new AgentFailure(
+        (e as NodeJS.ErrnoException).code === 'ENOENT'
+          ? 'COMPILER_MISSING'
+          : signal.aborted
+            ? 'CANCELLED'
+            : /TIMEOUT/.test(String(e))
+              ? 'TIMEOUT'
+              : 'COMPILE_FAILED',
+        output,
+      );
+    }
+  };
+  let result = await run();
+  // A failed run can be transient on Windows (a PDF still held open); retry once before failing.
+  if (result.code !== 0) {
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    result = await run();
+  }
+  if (result.code !== 0) {
+    let log = '';
+    try {
+      log = await readFile(join(workspace, 'Resume.log'), 'utf8');
+    } catch {
+      /* compiler can omit logs */
+    }
+    const errors = [
+      ...log.split(/\r?\n/).filter((line) => line.startsWith('!')),
+      ...`${result.stderr}`.split(/\r?\n/).filter((line) => /error/i.test(line)),
+    ];
     throw new AgentFailure(
-      (e as NodeJS.ErrnoException).code === 'ENOENT'
-        ? 'COMPILER_MISSING'
-        : signal.aborted
-          ? 'CANCELLED'
-          : /TIMEOUT/.test(String(e))
-            ? 'TIMEOUT'
-            : 'COMPILE_FAILED',
+      'COMPILE_FAILED',
       output,
+      undefined,
+      errors.slice(0, 3).map((line) => line.slice(0, 200)),
     );
   }
-  if (result.code !== 0) throw new AgentFailure('COMPILE_FAILED', output);
   const path = join(workspace, 'Resume.pdf');
   if ((await stat(path)).size > 2097152) throw new AgentFailure('COMPILE_FAILED', output);
   const pdf = await readFile(path);
@@ -175,12 +201,13 @@ export async function compileResume(
       `Resume is ${pageCount} pages. Shorten content; font and margins were not reduced.`,
     );
   const onePage = v2 && pageCount === 1;
-  const shortBullets = onePage
-    ? shortWrappedBullets(
+  const short = onePage
+    ? shortWrappedLines(
         firstPage,
         v2.sections.flatMap((s) => s.entries.flatMap((e) => e.bullets)),
       )
     : [];
+  const shortBullets = short.map((s) => s.bullet);
   const wrappedSkills = onePage
     ? wrappedSkillRows(
         firstPage,
@@ -205,6 +232,7 @@ export async function compileResume(
   return {
     pdf,
     shortBullets,
+    shortTails: short.map((s) => s.tail),
     wrappedSkills,
     headingCollisions: collisions,
     overflowLines: textLines(laterPages).length,
