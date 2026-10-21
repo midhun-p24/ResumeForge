@@ -1,5 +1,21 @@
 # Companion installation and connection
 
+## 0.5.9: reviewer judgment and full skills rows
+
+Page fitting is unchanged. The writer instructions gain a hiring-reviewer section: strongest
+evidence first (measured results, publications, awards), research with a paper and a measured
+improvement kept for engineering roles, a revision that adds an entry never swaps a stronger one
+out, no claim repeated across bullets, each entry keeps its strongest proof (test counts, scale,
+live URLs, publications), bold in most entries, clear wording, and abbreviated-month dates.
+Technical Skills becomes four or five full-line rows: the posting's supported technologies first,
+then the rest of the master resume's skills in that category, covering its categories, with every
+posting-named tool the sources support included and no filler such as "code reviews".
+
+Two checks feed the polish turns: a specific number (metric, count, percentage; not years or
+small counts) appearing in more than one bullet is sent back as a repeated claim, and the missing
+keyword check reads only the candidate's own sources, so posting-only skills such as Kubernetes
+are never requested.
+
 ## 0.5.8: no blank gap after a full bullet line
 
 Jake's `\resumeItem` writes `{#1 \vspace{-2pt}}`. The space before `\vspace` is a legal line
@@ -155,7 +171,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.8.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.9.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

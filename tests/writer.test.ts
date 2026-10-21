@@ -7,6 +7,7 @@ import {
   applyEdits,
   polishFeedback,
   removalOrder,
+  repeatedClaims,
   sourcedAwards,
   withAwards,
   trimTo,
@@ -50,7 +51,8 @@ function generous() {
     for (const e of s.entries)
       if (s.kind === 'entries')
         e.bullets = [
-          'Cut duplicate processing by **25%** with a TypeScript task queue.',
+          // Same text in every entry, so no metric here: a repeated number is flagged as a claim.
+          'Cut duplicate processing with a **TypeScript task queue**.',
           'Wrote PostgreSQL migrations reviewed in code reviews.',
           'Built a React and Node.js dashboard for 40 queues.',
           'Documented the TypeScript task queue for operators.',
@@ -353,4 +355,22 @@ it('adds awards after writing without another model call, trimming only if it ov
   expect(result.doc.sections[0].entries[0].bullets[0]).toContain('NASA MINDS 2025');
   expect(result.compiled.render.pageCount).toBe(1);
   expect(lines.join('\n')).toContain('Awards added to the honors line');
+});
+
+it('flags a number repeated across bullets but not years or small counts', () => {
+  const { doc } = docFixture();
+  doc.sections[2].entries[0].bullets = [
+    'Trained U-Net models in 2025, reaching a reported F1 score of 81.6%.',
+    'Compared RGB and edge inputs in 2025; models reached a reported F1 score of 81.6%.',
+    'Generated 4,500 labeled images with 2 pipelines.',
+  ];
+  doc.sections[3].entries[0].bullets = ['Rendered 4,500 images for review with 2 reviewers.'];
+  expect(repeatedClaims(doc)).toEqual(['81.6%', '4,500']);
+});
+
+it('never treats the posting as evidence for a missing keyword', () => {
+  const { input, doc } = docFixture();
+  input.job.description += ' Kubernetes experience is a plus.';
+  doc.keywords = [{ keyword: 'Kubernetes', covered: false, where: '' }];
+  expect(missingSourcedKeywords(input, doc)).toEqual([]);
 });

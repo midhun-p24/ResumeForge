@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import {
-  docSourceText,
   generationDocSchema,
   parseGeneratedDoc,
   unsourcedHeadings,
@@ -37,11 +36,29 @@ more relevant to this posting first. Use conventional section titles; each title
 Roles, research positions and team leadership roles (including competition teams) belong under
 Experience, not Projects. Put the sources' awards and honors (for example first-place results and
 dean's lists) on the education honors line.
-Technical Skills: three or four rows. Start each row with the posting's own technologies that the
-sources support (for a web role: JavaScript, TypeScript, HTML/CSS, React, Node.js, REST APIs, Git),
-then other strong related skills. Use concrete tools and languages only; never filler such as
-"data structures", "algorithms" or "object-oriented design" as skills. Prefer the category names
-the master resume uses.
+Technical Skills: four or five rows, each filled to one full line (85-100 characters including
+the category). In each row put first the posting's own technologies that the sources support (for
+a web role: JavaScript, TypeScript, HTML/CSS, React, Node.js, REST APIs, Git), then the rest of the
+master resume's skills in that category, most relevant first, until the line is full. Cover the
+master resume's skill categories (for example languages, frontend and web, backend and APIs,
+AI-assisted development and LLM tools, cloud and DevOps, ML and data) so the reader sees the whole
+toolkit; drop a category only when it is irrelevant to the posting. Every tool the posting names
+that the sources support (for example Claude, Codex, Docker, Git) must appear in a skills row. Use
+concrete tools and languages only; never filler such as "data structures", "algorithms",
+"object-oriented design" or "code reviews" as skills. Prefer the category names the master
+resume uses.
+
+SELECTION JUDGMENT (think like a hiring reviewer)
+Strongest evidence first: roles and research with measured results, publications or awards outrank
+entries that only list responsibilities. Research with a paper and a measured improvement is strong
+evidence for any engineering role; keep it unless the page truly cannot hold it.
+When a revision asks you to add something (for example another role), keep every strong entry
+already on the page and make room by trimming lower-value bullets; never swap a stronger entry out.
+Never repeat a claim, metric or number in two bullets; every bullet adds a new contribution.
+Keep each entry's strongest proof: test counts, scale numbers, live URLs and publication names.
+Bold one key metric or achievement in most entries, projects included.
+Prefer clear wording ("Reviewed the UI for accessibility and mobile layouts") over compressed
+phrases ("Reviewed accessible mobile layouts").
 
 WRITING
 Bullets are accomplishment-focused: "Accomplished X by doing Y using Z" is a flexible guide.
@@ -69,14 +86,15 @@ FIELDS
 Do not include the candidate's name or contact details; they are added automatically.
 education section: kind "education"; each entry heading = school, subheading = degree (and GPA if
 the sources give it), date, location; bullets are optional single lines such as honors.
-skills section: kind "skills"; three to five rows {category, items}; entries is empty.
+skills section: kind "skills"; four or five full-line rows {category, items}; entries is empty.
 Experience or research: kind "entries"; heading = role title, subheading = organization, date,
 location, stack = "".
 Projects: kind "entries"; heading = the project name only, stack = three to five key technologies
 most relevant to the posting, subheading = "", date, location = "".
 Headings hold names only. Status and team context such as "(in development)", "five-person team",
 "incomplete prototype" or "rebuild 2025" go into a bullet, never into the heading.
-Dates look like "Aug. 2023 -- May 2027" or "Summer 2026"; use exactly the periods in the sources.
+Dates use abbreviated months and a double hyphen, for example "Aug. 2023 -- May 2027", or a season
+such as "Summer 2026"; use exactly the periods in the sources.
 coverLetter: plain text, three or four short paragraphs separated by blank lines, under 350 words,
 starting "Dear <team or company named in the posting> Hiring Team," and ending "Sincerely," then the
 candidate's name on its own line. No date or address block. Specific, plain and confident; no
@@ -276,10 +294,34 @@ export function withAwards(input: TaskInput, doc: ResumeDoc): ResumeDoc | null {
 /** Posting keywords the sources support but the resume never mentions. */
 export function missingSourcedKeywords(input: TaskInput, doc: ResumeDoc): string[] {
   const resume = resumeText(doc);
-  const sources = docSourceText(input).toLowerCase();
+  // The candidate's own texts only: a posting keyword is never evidence of having the skill.
+  const sources = [
+    input.profile.masterText,
+    input.profile.portfolioText,
+    input.profile.referenceResume,
+  ]
+    .join('\n')
+    .toLowerCase();
   return doc.keywords
     .map((k) => k.keyword)
     .filter((k) => !resume.includes(k.toLowerCase()) && sources.includes(k.toLowerCase()));
+}
+
+/**
+ * Specific numbers (metrics, counts, percentages; not years or small counts) that appear in more
+ * than one bullet, which reads as the same claim made twice.
+ */
+export function repeatedClaims(doc: ResumeDoc): string[] {
+  const seen = new Map<string, number>();
+  for (const bullet of doc.sections.flatMap((s) => s.entries.flatMap((e) => e.bullets))) {
+    const tokens = new Set(
+      (bullet.match(/\d[\d,.]*%?/g) ?? [])
+        .map((n) => n.replace(/[.,]+$/, ''))
+        .filter((n) => /[.%]|\d{3}/.test(n) && !/^(19|20)\d\d$/.test(n)),
+    );
+    for (const token of tokens) seen.set(token, (seen.get(token) ?? 0) + 1);
+  }
+  return [...seen].filter(([, count]) => count > 1).map(([token]) => token);
 }
 
 /** Line-level fixes for a fitted page, each with a concrete target the model can hit. */
@@ -300,6 +342,11 @@ export function polishFeedback(input: TaskInput, measured: Measured, doc: Resume
   if (measured.headingCollisions.length)
     feedback.push(
       `These headings run into their date: ${measured.headingCollisions.map((h) => `"${h}"`).join(', ')}. Give each a plain name with no notes in parentheses and a stack of three or four technologies.`,
+    );
+  const repeated = repeatedClaims(doc);
+  if (repeated.length)
+    feedback.push(
+      `These numbers appear in more than one bullet, so the same claim is made twice: ${repeated.join(', ')}. Keep each in its single strongest bullet and replace the repeat with a different sourced contribution of similar length.`,
     );
   const missing = missingSourcedKeywords(input, doc);
   if (missing.length)
