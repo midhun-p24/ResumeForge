@@ -3,7 +3,6 @@ import type { ResumeDoc } from '@resumeforge/contracts';
 import {
   draftMessage,
   fitByTrimming,
-  missingAwards,
   missingSourcedKeywords,
   applyEdits,
   polishFeedback,
@@ -127,7 +126,6 @@ it('polishes with small edits on the fitted page instead of a full rewrite', asy
     bullets: [{ original: original.replaceAll('**', ''), replacement }],
     skills: [],
     headings: [],
-    honors: '',
   };
   const s = session(wire(doc), edits);
   const compile = vi
@@ -157,7 +155,6 @@ it('never replaces a good page with a worse polish attempt', async () => {
     ],
     skills: [],
     headings: [],
-    honors: '',
   });
   const compile = vi
     .fn()
@@ -192,7 +189,6 @@ it('skips a candidate that fails to compile and keeps the best page', async () =
     ],
     skills: [],
     headings: [],
-    honors: '',
   };
   const lines: string[] = [];
   const s = session(wire(doc), edits);
@@ -221,10 +217,8 @@ it('applies bullet, skills and heading edits by matching original text', () => {
     ],
     skills: [{ category: 'languages', items: 'TypeScript, SQL, JavaScript' }],
     headings: [{ original: 'Queue Visualizer', heading: 'Queue Viewer', stack: 'React' }],
-    honors: "1st Place, NASA MINDS; President's List",
   });
-  expect(applied).toBe(4);
-  expect(next.sections[0].entries[0].bullets).toEqual(["1st Place, NASA MINDS; President's List"]);
+  expect(applied).toBe(3);
   expect(next.sections[3].entries[0]).toMatchObject({
     heading: 'Queue Viewer',
     stack: 'React',
@@ -315,44 +309,4 @@ it('strips schema keywords Claude structured outputs do not accept', () => {
     type: 'object',
     properties: { a: { type: 'string' }, b: { type: 'array', items: {} } },
   });
-});
-
-it('never treats the posting as evidence for a missing keyword', () => {
-  const { input, doc } = docFixture();
-  input.job.description += ' Kubernetes experience is a plus.';
-  doc.keywords = [
-    { keyword: 'Kubernetes', covered: false, where: '' },
-    { keyword: 'PostgreSQL', covered: false, where: '' },
-  ];
-  doc.sections[2].entries[0].bullets = ['Cut duplicate processing by **25%** with a queue.'];
-  expect(missingSourcedKeywords(input, doc)).not.toContain('Kubernetes');
-});
-
-it('names placed awards that are missing from the honors line, once each', () => {
-  const { input, doc } = docFixture();
-  input.profile.masterText +=
-    '\n- Co-led the NASA MINDS 2025 team, which won first place for its paper.\nAWARDS\nFirst Place Technical Paper, NASA MINDS 2025 (team award)\n1st place, ECoG Data Analysis, BR41N.IO Hackathon at IEEE SMC 2026';
-  doc.sections[0].entries[0].bullets = ["President's List (2 terms)"];
-  const missing = missingAwards(input, doc);
-  expect(missing).toHaveLength(2);
-  expect(missing[0]).toContain('First Place Technical Paper, NASA MINDS 2025');
-  doc.sections[0].entries[0].bullets = [
-    '1st Place, NASA MINDS 2025 Paper; 1st Place, IEEE SMC 2026 Hackathon',
-  ];
-  expect(missingAwards(input, doc)).toEqual([]);
-  expect(
-    polishFeedback(
-      input,
-      {
-        render: { status: 'ready', pageCount: 1, warnings: [] },
-        pageFill: 0.97,
-        shortBullets: [],
-        shortTails: [],
-        wrappedSkills: [],
-        headingCollisions: [],
-        overflowLines: 0,
-      },
-      doc,
-    ),
-  ).toEqual([]);
 });

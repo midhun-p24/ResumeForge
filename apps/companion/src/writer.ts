@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  docSourceText,
   generationDocSchema,
   parseGeneratedDoc,
   unsourcedHeadings,
@@ -215,49 +216,13 @@ const resumeText = (doc: ResumeDoc) =>
     ])
     .join('\n')
     .toLowerCase();
-/** The candidate's own texts, excluding the posting (which must never count as evidence). */
-const candidateText = (input: TaskInput) =>
-  [input.profile.masterText, input.profile.portfolioText, input.profile.referenceResume].join('\n');
-/** Posting keywords the candidate's sources support but the resume never mentions. */
+/** Posting keywords the sources support but the resume never mentions. */
 export function missingSourcedKeywords(input: TaskInput, doc: ResumeDoc): string[] {
   const resume = resumeText(doc);
-  const sources = candidateText(input).toLowerCase();
+  const sources = docSourceText(input).toLowerCase();
   return doc.keywords
     .map((k) => k.keyword)
     .filter((k) => !resume.includes(k.toLowerCase()) && sources.includes(k.toLowerCase()));
-}
-const awardStopwords = new Set(['First', 'Second', 'Third', 'Place', 'Team', 'Award', 'The']);
-/** Placed awards in the sources whose distinctive names never reach the education honors line. */
-export function missingAwards(input: TaskInput, doc: ResumeDoc): string[] {
-  const honors = doc.sections
-    .filter((s) => s.kind === 'education')
-    .flatMap((s) => s.entries.flatMap((e) => e.bullets))
-    .join(' ')
-    .toLowerCase();
-  // Shortest lines first, so a concise awards-list entry wins over a long bullet saying the same.
-  const lines = candidateText(input)
-    .split(/\r?\n/)
-    .filter((line) => /\b(1st|first|2nd|second|3rd|third)\s+place\b/i.test(line))
-    .sort((a, b) => a.length - b.length);
-  // Acronym-like names (NASA, MINDS, IEEE, BR41N.IO) identify an award across its mentions.
-  const seen = new Set<string>();
-  const missing: string[] = [];
-  for (const line of lines) {
-    const names = (line.match(/\b[A-Z][A-Za-z0-9.]{2,}\b/g) ?? []).filter(
-      (w) => !awardStopwords.has(w),
-    );
-    const ids = names.filter((w) => (w.match(/[A-Z]/g) ?? []).length >= 2);
-    if (!names.length || ids.some((id) => seen.has(id))) continue;
-    ids.forEach((id) => seen.add(id));
-    if (!names.some((n) => honors.includes(n.toLowerCase())))
-      missing.push(
-        line
-          .replace(/^[\s\-•*]+/, '')
-          .trim()
-          .slice(0, 160),
-      );
-  }
-  return missing.slice(0, 3);
 }
 
 /** Line-level fixes for a fitted page, each with a concrete target the model can hit. */
@@ -284,11 +249,6 @@ export function polishFeedback(input: TaskInput, measured: Measured, doc: Resume
     feedback.push(
       `These posting keywords are in the sources but nowhere in the resume: ${missing.join(', ')}. Add them to the matching skills row (keep it one line) or to a relevant bullet without lengthening it.`,
     );
-  const awards = missingAwards(input, doc);
-  if (awards.length)
-    feedback.push(
-      `The sources list these awards, which are missing from the education honors line: ${awards.map((a) => `"${a}"`).join('; ')}. Return "honors" as a full replacement honors line naming them briefly, keeping it to one or two full lines.`,
-    );
   const bullets = doc.sections.flatMap((s) => s.entries.flatMap((e) => e.bullets));
   if (bullets.length && !bullets.some((b) => b.includes('**')))
     feedback.push(
@@ -314,7 +274,6 @@ export const polishEditsSchema = z.object({
       }),
     )
     .max(12),
-  honors: z.string().max(400),
 });
 export type PolishEdits = z.infer<typeof polishEditsSchema>;
 export const polishSchema = z.toJSONSchema(polishEditsSchema, { target: 'draft-7' });
@@ -343,11 +302,6 @@ export function applyEdits(
       row.items = edit.items;
       applied++;
     }
-  }
-  const education = next.sections.find((s) => s.kind === 'education')?.entries[0];
-  if (edits.honors.trim() && education) {
-    education.bullets = [edits.honors.trim(), ...education.bullets.slice(1)];
-    applied++;
   }
   for (const edit of edits.headings) {
     const e = next.sections
@@ -468,7 +422,7 @@ export async function writeResume<T extends Measured>(
       await consider(doc, turn);
       continue;
     }
-    prompt = `Polish the fitted resume below. Return ONLY the lines to change, as edits: copy each original bullet text exactly into "original"; use "skills" for whole replacement skills rows, "headings" for heading fixes, and "honors" for a full replacement of the education honors line ("" keeps it); leave lists empty when unused. Change nothing else and keep every fact sourced.\n${feedback.map((f) => `- ${f}`).join('\n')}${note}\n${current}`;
+    prompt = `Polish the fitted resume below. Return ONLY the lines to change, as edits: copy each original bullet text exactly into "original"; use "skills" for whole replacement skills rows and "headings" for heading fixes; leave lists empty when unused. Change nothing else and keep every fact sourced.\n${feedback.map((f) => `- ${f}`).join('\n')}${note}\n${current}`;
     let edits: PolishEdits;
     try {
       edits = polishEditsSchema.parse(await session.send(prompt, polishSchema));
@@ -479,7 +433,7 @@ export async function writeResume<T extends Measured>(
     }
     const { doc, applied } = applyEdits(base.doc, edits);
     log(
-      `Turn ${turn}: applied ${applied} of ${edits.bullets.length + edits.skills.length + edits.headings.length + (edits.honors.trim() ? 1 : 0)} edits`,
+      `Turn ${turn}: applied ${applied} of ${edits.bullets.length + edits.skills.length + edits.headings.length} edits`,
     );
     if (!applied) {
       note = '\nNone of your last edits matched: copy each original line exactly from the JSON.';
