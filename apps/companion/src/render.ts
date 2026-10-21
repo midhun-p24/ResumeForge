@@ -9,7 +9,13 @@ import { renderLatex } from '@resumeforge/resume';
 import type { ResumeTemplateId } from '@resumeforge/resume';
 import { execFile, localEnvironment } from './process';
 import { AgentFailure } from './adapter';
-import { shortWrappedBullets, textLines, wrappedSkillRows, type TextItem } from './layout';
+import {
+  headingCollisions,
+  shortWrappedBullets,
+  textLines,
+  wrappedSkillRows,
+  type TextItem,
+} from './layout';
 
 export const tectonicPath = () => {
   const bundled = fileURLToPath(
@@ -39,6 +45,8 @@ export type Compiled = {
   pageFill: number;
   /** v2 bullets whose last printed line holds only a few words. */
   shortBullets: string[];
+  /** v2 entry headings that run into their right-aligned date. */
+  headingCollisions: string[];
   /** v2 skills categories whose row wraps onto a second line. */
   wrappedSkills: string[];
   /** Printed lines beyond the first page. */
@@ -179,15 +187,26 @@ export async function compileResume(
         v2.sections.flatMap((s) => s.skills.map((k) => k.category)),
       )
     : [];
+  const collisions = v2
+    ? headingCollisions(
+        firstPage,
+        v2.sections.flatMap((s) => s.entries.map((e) => e.heading)),
+      )
+    : [];
   if (shortBullets.length)
     warnings.push(
       `${shortBullets.length} bullet(s) wrap with only a few words on the last line. Consider tightening them.`,
     );
+  if (collisions.length) {
+    clipped = true;
+    warnings.push(`Heading runs into its date: ${collisions.join(', ')}. Review the PDF.`);
+  }
   // The template uses 0.4in top and bottom margins.
   return {
     pdf,
     shortBullets,
     wrappedSkills,
+    headingCollisions: collisions,
     overflowLines: textLines(laterPages).length,
     pageFill: Number.isFinite(bottom)
       ? Math.min(1, Math.max(0, (firstPageHeight - 28.8 - bottom) / (firstPageHeight - 57.6)))

@@ -264,7 +264,9 @@ async function processTask(
     } else if (input.format === 'doc_v2') {
       const settings = await loadSettings();
       const session = await openSession(settings, workspace, WRITER_RULES, writerSchema, signal);
-      const written = await writeResume(input, session, compile, onStage);
+      const written = await writeResume(input, session, compile, onStage, 5, (line) =>
+        console.log(`Task ${task.id.slice(0, 8)}: ${line}`),
+      );
       output = written.doc;
       rendered = written.compiled;
     } else {

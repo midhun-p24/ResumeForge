@@ -90,3 +90,24 @@ export function wrappedSkillRows(items: TextItem[], categories: string[]): strin
   }
   return found;
 }
+
+/**
+ * Entry headings whose left text runs into (or pushes past) the right-aligned date column.
+ * A heading row normally has a wide gap before its date; a collision leaves almost none.
+ */
+export function headingCollisions(
+  items: TextItem[],
+  headings: string[],
+  pageWidth = 612,
+  margin = 25,
+): string[] {
+  const found: string[] = [];
+  for (const line of textLines(items)) {
+    const heading = headings.find((h) => squash(lineText(line)).startsWith(squash(h).slice(0, 24)));
+    if (!heading || line.length < 2) continue;
+    const date = line[line.length - 1];
+    const before = Math.max(...line.slice(0, -1).map((i) => i.x + i.width));
+    if (date.x - before < 6 || date.x + date.width > pageWidth - margin) found.push(heading);
+  }
+  return [...new Set(found)];
+}

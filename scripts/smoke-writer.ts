@@ -34,6 +34,8 @@ const result = await writeResume(
   counted,
   (doc) => compileResume(input.profile, doc, dir, signal, stage, process.argv.includes('--warmup')),
   stage,
+  5,
+  console.log,
 ).catch((e) => {
   console.error('Writer diagnostic:', e.code ?? e, e.diagnostics ?? '');
   throw e;
@@ -51,6 +53,7 @@ console.log(
       pageFill: Math.round(final.pageFill * 100) / 100,
       shortBullets: final.shortBullets,
       wrappedSkills: final.wrappedSkills,
+      headingCollisions: final.headingCollisions,
       keywords: `${result.doc.keywords.filter((k) => k.covered).length}/${result.doc.keywords.length}`,
       gaps: result.doc.gaps,
     },

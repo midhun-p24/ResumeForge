@@ -16,6 +16,7 @@ const measured = (over: Partial<Measured> = {}): Measured => ({
   pageFill: 0.97,
   shortBullets: [],
   wrappedSkills: [],
+  headingCollisions: [],
   overflowLines: 0,
   ...over,
 });
@@ -69,6 +70,34 @@ it('feeds overflow, sparse pages and widow lines back as concrete instructions',
   expect(feedback.join(' ')).toContain('"Built a dashboard."');
   expect(feedback.join(' ')).toContain('Languages');
   expect(layoutFeedback(measured())).toEqual([]);
+});
+
+it('names colliding headings and thin entries, and logs every attempt', async () => {
+  const { input, doc } = docFixture();
+  const collision = layoutFeedback(measured({ headingCollisions: ['Queue Visualizer'] }));
+  expect(collision.join(' ')).toContain('"Queue Visualizer"');
+  expect(collision.join(' ')).toContain('plain name');
+  const sparse = layoutFeedback(measured({ pageFill: 0.8 }), doc).join(' ');
+  expect(sparse).toContain('"Software Intern"');
+  expect(sparse).toContain('"Queue Visualizer"');
+  const lines: string[] = [];
+  const s = session(wire(doc), wire(doc));
+  await writeResume(
+    input,
+    s,
+    vi
+      .fn()
+      .mockResolvedValueOnce(measured({ headingCollisions: ['Queue Visualizer'] }))
+      .mockResolvedValue(measured()),
+    stage,
+    5,
+    (line) => lines.push(line),
+  );
+  expect(lines[0]).toBe(
+    'Turn 1: 1 page, 97% full, 0 short last lines, 0 wrapped skills rows, 1 heading collisions',
+  );
+  expect(lines.at(-1)).toContain('Chosen: 1 page, 97% full');
+  expect(s.send).toHaveBeenCalledTimes(2);
 });
 
 it('revises after compiling and keeps the best one-page candidate', async () => {

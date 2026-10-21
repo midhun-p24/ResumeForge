@@ -1,5 +1,16 @@
 # Companion installation and connection
 
+## 0.5.1: heading collisions, stricter rules, turn log
+
+The layout check now detects entry headings that run into their right-aligned date (or past the
+margin) and sends the model a precise fix; such a page is marked for review. Writer rules keep
+headings to plain names (status and team notes go in bullets), cap heading and stack length, put
+roles and competition teams under Experience, put sourced awards on the honors line, lead skills
+rows with the posting's supported technologies and forbid filler skills. Sparse-page feedback names
+the entries that have room for more sourced bullets. The companion prints one line per attempt
+(pages, percent full, short last lines, wrapped skills rows, heading collisions) and the chosen
+result, so a weak resume can be explained from the terminal.
+
 ## 0.5.0: source-based writer, Codex or Claude
 
 Tailoring no longer reads approved records. The writer receives the job posting plus the raw
@@ -103,7 +114,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.0.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.1.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

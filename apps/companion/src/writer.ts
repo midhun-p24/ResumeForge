@@ -33,6 +33,14 @@ wording for skills and practices the sources genuinely support (for example "RES
 "code reviews", "AI-assisted development") so ATS keyword scanners match them.
 Order: Education, Technical Skills, then Projects and Experience, putting whichever of the two is
 more relevant to this posting first. Use conventional section titles; each title appears once.
+Roles, research positions and team leadership roles (including competition teams) belong under
+Experience, not Projects. Put the sources' awards and honors (for example first-place results and
+dean's lists) on the education honors line.
+Technical Skills: three or four rows. Start each row with the posting's own technologies that the
+sources support (for a web role: JavaScript, TypeScript, HTML/CSS, React, Node.js, REST APIs, Git),
+then other strong related skills. Use concrete tools and languages only; never filler such as
+"data structures", "algorithms" or "object-oriented design" as skills. Prefer the category names
+the master resume uses.
 
 WRITING
 Bullets are accomplishment-focused: "Accomplished X by doing Y using Z" is a flexible guide.
@@ -42,10 +50,14 @@ Bold at most two short key metrics or achievements per bullet with **double aste
 whole phrases. No other markup, LaTeX or HTML.
 
 LAYOUT (Jake's Resume template, about 0.45in margins, 10pt body text)
-Produce one densely filled page with as much relevant detail as fits. A full bullet line holds
-about 105-115 characters (bold text is wider). Every bullet must fill one full line or two full
-lines; never leave one to three words alone on a final line. Each skills row, category included,
-must fit on one line (about 100 characters). To make room: shorten wording first, then cut
+Produce one densely filled page with as much relevant detail as fits; an empty band at the bottom
+is a failure. A full bullet line holds about 105-115 characters (bold text is wider). Write most
+bullets as one full line (95-115 characters) or two full lines (200-225 characters); short
+half-line bullets waste space. Never leave one to three words alone on a final line. Each skills
+row, category included, must fit on one line (about 100 characters).
+Headings share one printed line with their date. Keep the heading plus project stack under about
+75 characters and the heading plus date of a role under about 85 characters, or the heading runs
+into the date. To make room: shorten wording first, then cut
 lower-priority bullets, then cut whole lower-priority entries. Fonts and margins are fixed.
 After you answer, the resume is compiled and you will be told exactly what overflowed, how much
 space is left, and which lines wrapped badly; fix precisely those things.
@@ -57,8 +69,10 @@ the sources give it), date, location; bullets are optional single lines such as 
 skills section: kind "skills"; three to five rows {category, items}; entries is empty.
 Experience or research: kind "entries"; heading = role title, subheading = organization, date,
 location, stack = "".
-Projects: kind "entries"; heading = project name, stack = three to five key technologies,
-subheading = "", date, location = "".
+Projects: kind "entries"; heading = the project name only, stack = three to five key technologies
+most relevant to the posting, subheading = "", date, location = "".
+Headings hold names only. Status and team context such as "(in development)", "five-person team",
+"incomplete prototype" or "rebuild 2025" go into a bullet, never into the heading.
 Dates look like "Aug. 2023 -- May 2027" or "Summer 2026"; use exactly the periods in the sources.
 coverLetter: plain text, three or four short paragraphs separated by blank lines, under 350 words,
 starting "Dear <team or company named in the posting> Hiring Team," and ending "Sincerely," then the
@@ -104,6 +118,7 @@ export type Measured = {
   pageFill: number;
   shortBullets: string[];
   wrappedSkills: string[];
+  headingCollisions: string[];
   overflowLines: number;
 };
 type Candidate<T> = { doc: ResumeDoc; compiled: T };
@@ -113,15 +128,20 @@ export const TARGET_FILL = 0.93;
 const USABLE_LINES = (792 - 57.6) / 12.1;
 
 /** Concrete compile feedback, worded the way a careful editor would say it. */
-export function layoutFeedback(measured: Measured): string[] {
+export function layoutFeedback(measured: Measured, doc?: ResumeDoc): string[] {
   const feedback: string[] = [];
+  // Entries with room for another sourced bullet, most relevant (earliest) first.
+  const thin = (doc?.sections ?? [])
+    .filter((s) => s.kind === 'entries')
+    .flatMap((s) => s.entries.filter((e) => e.bullets.length < 3).map((e) => e.heading))
+    .slice(0, 4);
   if (measured.render.pageCount > 1)
     feedback.push(
       `The compiled resume runs onto a second page by about ${Math.max(1, measured.overflowLines)} printed lines. Shorten wording first, then cut the lowest-priority bullets, then lower-priority entries until it fits one page.`,
     );
   else if (measured.pageFill < TARGET_FILL)
     feedback.push(
-      `The page is only ${Math.round(measured.pageFill * 100)}% full; about ${Math.round((1 - measured.pageFill) * USABLE_LINES)} printed lines are empty at the bottom. Add the most relevant remaining facts from the sources: more bullets for the top entries, or the next most relevant role or project.`,
+      `The page is only ${Math.round(measured.pageFill * 100)}% full; about ${Math.round((1 - measured.pageFill) * USABLE_LINES)} printed lines are empty at the bottom. Fill it: lengthen half-line bullets into full lines with sourced specifics${thin.length ? `, add sourced bullets to ${thin.map((h) => `"${h}"`).join(', ')}` : ''}, and add the next most relevant role or project from the sources.`,
     );
   if (measured.shortBullets.length)
     feedback.push(
@@ -131,6 +151,10 @@ export function layoutFeedback(measured: Measured): string[] {
     feedback.push(
       `These skills rows wrap onto a second line: ${measured.wrappedSkills.join(', ')}. Shorten each to fit one line, keeping the posting's keywords.`,
     );
+  if (measured.headingCollisions.length)
+    feedback.push(
+      `These headings run into their date on the same line: ${measured.headingCollisions.map((h) => `"${h}"`).join(', ')}. Keep only the plain name in the heading, move status or team notes into a bullet, and shorten the project stack to three or four technologies.`,
+    );
   return feedback;
 }
 
@@ -138,7 +162,21 @@ const onePage = (m: Measured) => m.render.pageCount === 1;
 const quality = (m: Measured) =>
   (m.render.status === 'ready' ? 10 : 0) +
   Math.min(m.pageFill, 1) * 100 -
-  4 * (m.shortBullets.length + m.wrappedSkills.length);
+  4 * (m.shortBullets.length + m.wrappedSkills.length) -
+  10 * m.headingCollisions.length;
+
+/** One log line per compiled attempt, so a weak result can be explained afterwards. */
+export function describeMeasured(m: Measured): string {
+  const parts = [
+    m.render.pageCount > 1
+      ? `${m.render.pageCount} pages (+${m.overflowLines} lines)`
+      : `1 page, ${Math.round(m.pageFill * 100)}% full`,
+    `${m.shortBullets.length} short last lines`,
+    `${m.wrappedSkills.length} wrapped skills rows`,
+    `${m.headingCollisions.length} heading collisions`,
+  ];
+  return parts.join(', ');
+}
 
 /** Last resort when no turn fit one page: drop the lowest bullets, then the lowest entries. */
 export function trimDoc(doc: ResumeDoc): ResumeDoc | null {
@@ -168,6 +206,7 @@ export async function writeResume<T extends Measured>(
   compile: (doc: ResumeDoc) => Promise<T>,
   onStage: (stage: 'Writing resume') => Promise<void>,
   maxTurns = 5,
+  log: (line: string) => void = () => {},
 ): Promise<{ doc: ResumeDoc; compiled: T }> {
   let prompt = draftMessage(input);
   let best: Candidate<T> | null = null;
@@ -185,19 +224,22 @@ export async function writeResume<T extends Measured>(
         error instanceof z.ZodError
           ? error.issues.slice(0, 8).map((i) => `${i.path.join('.')}: ${i.message}`)
           : ['output: invalid'];
+      log(`Turn ${turn + 1}: schema mismatch (${diagnostics.slice(0, 3).join('; ')})`);
       prompt = `Your answer did not match the schema: ${diagnostics.join('; ')}. Return the complete corrected JSON.`;
       continue;
     }
     lastDoc = doc;
     diagnostics = validateDoc(input, doc);
     if (diagnostics.length) {
+      log(`Turn ${turn + 1}: rejected before compiling (${diagnostics.join(' ').slice(0, 200)})`);
       prompt = `Fix these problems and return the complete corrected JSON: ${diagnostics.join(' ')}`;
       continue;
     }
     const compiled = await compile(doc);
     last = { doc, compiled };
     if (onePage(compiled) && (!best || quality(compiled) > quality(best.compiled))) best = last;
-    const feedback = layoutFeedback(compiled);
+    log(`Turn ${turn + 1}: ${describeMeasured(compiled)}`);
+    const feedback = layoutFeedback(compiled, doc);
     if (!feedback.length) break;
     if (turn === maxTurns - 1) break;
     prompt = `${feedback.join('\n')}\nKeep every fact sourced. Return the complete revised JSON.`;
@@ -208,7 +250,9 @@ export async function writeResume<T extends Measured>(
     const doc = trimDoc(chosen.doc);
     if (!doc) break;
     chosen = { doc, compiled: await compile(doc) };
+    log(`Trim ${trims + 1}: ${describeMeasured(chosen.compiled)}`);
   }
+  log(`Chosen: ${describeMeasured(chosen.compiled)}`);
   const unsourced = unsourcedHeadings(input, chosen.doc);
   if (unsourced.length)
     chosen.doc.notes = [

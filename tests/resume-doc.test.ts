@@ -8,7 +8,11 @@ import {
   unsourcedHeadings,
 } from '@resumeforge/contracts';
 import { renderDocBullet, renderLatex } from '@resumeforge/resume';
-import { shortWrappedBullets, wrappedSkillRows } from '../apps/companion/src/layout';
+import {
+  headingCollisions,
+  shortWrappedBullets,
+  wrappedSkillRows,
+} from '../apps/companion/src/layout';
 import { docFixture, fixture } from './fixtures';
 
 describe('source-based (v2) documents', () => {
@@ -91,6 +95,30 @@ describe('page layout measurement', () => {
       item('PostgreSQL', 54, 644, 60),
     ];
     expect(shortWrappedBullets(items, bullets)).toEqual([bullets[1]]);
+  });
+  it('finds headings that run into their right-aligned date', () => {
+    const items = [
+      item('FlowLens (five-person team project, in development)', 43, 600, 230),
+      item('|', 276, 600, 3),
+      item('React, Cytoscape.js, Python, FastAPI, Tree-sitter', 282, 600, 228),
+      item('2026 – Present', 511, 600, 60),
+      item('Queue Visualizer', 43, 560, 80),
+      item('|', 126, 560, 3),
+      item('React, Node.js', 132, 560, 70),
+      item('2025', 556, 560, 24),
+      item('Very Long Research Assistant Title For A Project', 43, 520, 470),
+      item('Aug. 2025 – Present', 520, 520, 80),
+    ];
+    expect(
+      headingCollisions(items, [
+        'FlowLens (five-person team project, in development)',
+        'Queue Visualizer',
+        'Very Long Research Assistant Title For A Project',
+      ]),
+    ).toEqual([
+      'FlowLens (five-person team project, in development)',
+      'Very Long Research Assistant Title For A Project',
+    ]);
   });
   it('finds skills rows that wrap onto a second line', () => {
     const items = [
