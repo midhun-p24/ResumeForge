@@ -53,6 +53,7 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
     profile.records.filter((r) => r.verification === 'approved').map((r) => [r.id, r]),
   );
   const contact = [
+    e(profile.contact.location),
     e(profile.contact.phone),
     profile.contact.email
       ? `\\href{mailto:${e(profile.contact.email)}}{\\underline{${e(profile.contact.email)}}}`
@@ -149,15 +150,22 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
   return (
     JAKE_TECTONIC_COMPATIBILITY +
     JAKE_TEMPLATE_PREAMBLE +
-    String.raw`% User-requested compact spacing; original Jake preamble retained above.
-\titlespacing*{\section}{0pt}{10pt}{8pt}
-\renewcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in,label={},itemsep=1pt,topsep=4pt,parsep=0pt]}
-\renewcommand{\resumeItemListStart}{\begin{itemize}[itemsep=1pt,topsep=8pt,parsep=0pt]}
+    String.raw`% User-requested Simplify-style margins (~0.45in sides, ~0.4in top/bottom) and tight
+% bullet spacing; original Jake preamble retained above. Font sizes are unchanged.
+\addtolength{\oddsidemargin}{-0.05in}
+\addtolength{\evensidemargin}{-0.05in}
+\addtolength{\textwidth}{0.1in}
+\addtolength{\topmargin}{-0.1in}
+\addtolength{\textheight}{0.2in}
+\titleformat{\section}{
+  \vspace{-6pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+\renewcommand{\resumeItemListStart}{\begin{itemize}[itemsep=0pt]}
 ` +
     notices +
     '\n% ResumeForge controlled body; synthetic review or user-approved facts only.\n' +
     '\\begin{document}\n\\begin{center}\n' +
-    `\\textbf{\\huge \\scshape ${e(profile.contact.name)}} \\\\ \\vspace{1pt}\n\\small ${contact}\n` +
+    `\\textbf{\\Huge \\scshape ${e(profile.contact.name)}} \\\\ \\vspace{1pt}\n\\footnotesize ${contact}\n` +
     `\\end{center}\n\n${sections.join('\n\n')}\n\\end{document}\n`
   );
 }

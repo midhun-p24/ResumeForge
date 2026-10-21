@@ -1,5 +1,19 @@
 # Companion installation and connection
 
+## 0.4.0: paste-a-job prompt rules and cover letters
+
+Tailoring follows the owner's portable paste-a-job prompt (one filled page, truth first,
+posting keywords only where the profile supports them). Projects or Experience comes first,
+whichever is more relevant to the posting. Unlocked entries carry one to four distinct
+supported bullets: three or four for the most relevant, one or two for supporting entries.
+The fitter compiles, then spends at most two model turns on overflow, a page under 90% full,
+or bullets whose last line holds only a few words. It keeps the best one-page candidate and
+only then trims bullets (never below two) before whole low-ranked entries.
+Every result includes a plain-text cover letter grounded in approved facts and the posting;
+its numbers must appear in either. The template moves to ~0.45in side and ~0.4in top/bottom
+margins, adds the profile location to a footnote-size contact line, and keeps body fonts.
+Older saved versions have no cover letter; tailor a fresh version to get one.
+
 ## 0.3.7: relevance and depth before breadth
 
 The fitter starts with the best experience/research entry and best project, then
@@ -65,7 +79,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.3.8.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.4.0.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

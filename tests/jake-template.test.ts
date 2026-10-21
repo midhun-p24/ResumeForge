@@ -82,7 +82,7 @@ describe('supplied canonical Jake template (active)', () => {
   });
 });
 
-it('uses compact contact labels with original destinations and a smaller name', () => {
+it('uses compact contact labels, location first, and Simplify-style margins', () => {
   const { input, output } = fixture();
   input.profile.contact.links = [
     'https://github.com/example',
@@ -93,6 +93,9 @@ it('uses compact contact labels with original destinations and a smaller name', 
   expect(tex).toContain(
     '\\href{https://www.linkedin.com/in/example-long-id}{\\underline{LinkedIn}}',
   );
-  expect(tex).toContain('\\huge \\scshape');
-  expect(tex).toContain('\\titlespacing*');
+  expect(tex).toContain('\\Huge \\scshape');
+  expect(tex).toContain('\\footnotesize Example City $|$');
+  expect(tex).toContain('\\addtolength{\\oddsidemargin}{-0.05in}');
+  expect(tex).toContain('\\addtolength{\\textheight}{0.2in}');
+  expect(tex).toContain('\\resumeItemListStart}{\\begin{itemize}[itemsep=0pt]}');
 });

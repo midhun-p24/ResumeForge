@@ -31,7 +31,13 @@ import {
   WifiOff,
   X,
 } from 'lucide-react';
-import { emptyProfile, fitScore, stages, profileSchema } from '@resumeforge/contracts';
+import {
+  COMPANION_VERSION,
+  emptyProfile,
+  fitScore,
+  stages,
+  profileSchema,
+} from '@resumeforge/contracts';
 import type {
   AgentOutput,
   ApplicationView,
@@ -1202,7 +1208,7 @@ function ResumeWorkspace({
     [draft, setDraft] = useState<AgentOutput | null>(null),
     [pdf, setPdf] = useState(''),
     [compare, setCompare] = useState(''),
-    [tab, setTab] = useState<'Resume' | 'Fit & evidence' | 'Versions'>('Resume');
+    [tab, setTab] = useState<'Resume' | 'Cover letter' | 'Fit & evidence' | 'Versions'>('Resume');
   const version = versions.find((v) => v.id === versionId) ?? versions[0];
   const task = data.tasks.find((t) => t.job_id === job?.id);
   const outputKey = JSON.stringify(version?.output);
@@ -1279,7 +1285,7 @@ function ResumeWorkspace({
       </Heading>
       <div className="workspace-toolbar">
         <div className="tab-list" role="tablist" aria-label="Resume workspace">
-          {(['Resume', 'Fit & evidence', 'Versions'] as const).map((t) => (
+          {(['Resume', 'Cover letter', 'Fit & evidence', 'Versions'] as const).map((t) => (
             <button
               role="tab"
               aria-selected={tab === t}
@@ -1446,6 +1452,82 @@ function ResumeWorkspace({
                 <p>{version.output.analysis.experience}</p>
               </section>
             </aside>
+          )}
+        </div>
+      )}
+      {tab === 'Cover letter' && (
+        <div className="panel form-panel">
+          <div className="section-heading">
+            <div>
+              <h2>Cover letter</h2>
+              <p>
+                Written with the resume from the same approved facts. Edit it here; saving creates a
+                new version.
+              </p>
+            </div>
+          </div>
+          {draft && version && draft.coverLetter !== undefined ? (
+            <>
+              <textarea
+                aria-label="Cover letter"
+                className="cover-letter"
+                rows={18}
+                maxLength={4000}
+                value={draft.coverLetter}
+                onChange={(e) => setDraft({ ...draft, coverLetter: e.target.value })}
+              />
+              <div className="downloads">
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    void run(async () => {
+                      await navigator.clipboard.writeText(draft.coverLetter ?? '');
+                    }, 'Cover letter copied.')
+                  }
+                >
+                  <Check size={15} />
+                  Copy
+                </button>
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    download(
+                      draft.coverLetter ?? '',
+                      `${safeFilename(version.profile.contact.name, job.data.company, job.data.title)}_Cover_Letter.txt`,
+                      'text/plain',
+                    )
+                  }
+                >
+                  <ArrowDownToLine size={15} />
+                  Text
+                </button>
+                <button
+                  className="button secondary"
+                  disabled={unchanged || busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await api('versions', 'POST', {
+                        parentId: version.id,
+                        output: draft,
+                        label: 'Cover letter edit',
+                      });
+                    }, 'New version saved with your cover letter edits.')
+                  }
+                >
+                  Save as new version
+                  <Check size={15} />
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state roomy">
+              <FileText size={30} />
+              <h3>No cover letter for this version yet</h3>
+              <p>
+                Tailor a fresh version with companion {COMPANION_VERSION} or later to get a cover
+                letter alongside the resume.
+              </p>
+            </div>
           )}
         </div>
       )}

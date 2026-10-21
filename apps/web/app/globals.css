@@ -1141,6 +1141,10 @@ p.pre-wrap {
   position: relative;
   margin: 12px 0;
 }
+.cover-letter {
+  font-size: 13px;
+  color: var(--ink);
+}
 .bullet-editor textarea {
   font-size: 12px;
   padding-right: 50px;

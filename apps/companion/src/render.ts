@@ -9,6 +9,7 @@ import { renderLatex } from '@resumeforge/resume';
 import type { ResumeTemplateId } from '@resumeforge/resume';
 import { execFile, localEnvironment } from './process';
 import { AgentFailure } from './adapter';
+import { shortWrappedBullets, type TextItem } from './layout';
 
 export const tectonicPath = () => {
   const bundled = fileURLToPath(
@@ -36,7 +37,7 @@ export async function compileResume(
   onStage: (s: 'Rendering PDF' | 'Checking layout') => Promise<void>,
   allowDownload = false,
   template?: ResumeTemplateId,
-): Promise<{ pdf: Buffer; render: RenderStatus; pageFill: number }> {
+): Promise<{ pdf: Buffer; render: RenderStatus; pageFill: number; shortBullets: string[] }> {
   await onStage('Rendering PDF');
   const source = join(workspace, 'Resume.tex');
   await writeFile(source, renderLatex(profile, output, template), { mode: 0o600 });
@@ -83,6 +84,7 @@ export async function compileResume(
   let clipped = false;
   let bottom = Infinity;
   let firstPageHeight = 792;
+  const firstPage: TextItem[] = [];
   const loading = getDocument({ data: new Uint8Array(pdf), useSystemFonts: true });
   const parsed = await loading.promise;
   for (let n = 1; n <= parsed.numPages; n++) {
@@ -95,6 +97,7 @@ export async function compileResume(
         extracted += item.str + ' ';
         const x = item.transform[4],
           y = item.transform[5];
+        if (n === 1) firstPage.push({ str: item.str, x, y, width: item.width });
         if (x < 25 || y < 24 || x + item.width > page.view[2] - 25 || y > page.view[3] - 24)
           clipped = true;
       }
@@ -138,10 +141,17 @@ export async function compileResume(
     warnings.push(
       `Resume is ${pageCount} pages. Shorten content; font and margins were not reduced.`,
     );
+  const shortBullets = pageCount === 1 ? shortWrappedBullets(firstPage, output) : [];
+  if (shortBullets.length)
+    warnings.push(
+      `${shortBullets.length} bullet(s) wrap with only a few words on the last line. Consider tightening them.`,
+    );
+  // The template uses 0.4in top and bottom margins.
   return {
     pdf,
+    shortBullets,
     pageFill: Number.isFinite(bottom)
-      ? Math.min(1, Math.max(0, (firstPageHeight - 43.2 - bottom) / (firstPageHeight - 86.4)))
+      ? Math.min(1, Math.max(0, (firstPageHeight - 28.8 - bottom) / (firstPageHeight - 57.6)))
       : 0,
     render: {
       status: pageCount > 1 ? 'overflow' : clipped || !textVerified ? 'review_required' : 'ready',

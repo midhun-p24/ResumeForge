@@ -147,6 +147,8 @@ export const agentOutputSchema = z.object({
   selectedSourceIds: z.array(idSchema).max(150),
   resume: resumeSchema,
   warnings: z.array(short).max(40),
+  // Plain-text cover letter. Optional because versions before 0.4.0 have none.
+  coverLetter: z.string().max(4000).optional(),
 });
 export type AgentOutput = z.infer<typeof agentOutputSchema>;
 // Saved v1 resumes may omit emphasis. The model-facing schema must instead
@@ -155,6 +157,7 @@ const generationBulletSchema = bulletSchema.extend({
   emphasis: bulletSchema.shape.emphasis.unwrap().nullable(),
 });
 export const generationOutputSchema = agentOutputSchema.extend({
+  coverLetter: z.string().max(4000),
   resume: resumeSchema.extend({
     sections: z
       .array(
@@ -209,7 +212,7 @@ export const taskInputSchema = z
       ctx.addIssue({ code: 'custom', message: 'Locks require a prior resume' });
   });
 export type TaskInput = z.infer<typeof taskInputSchema>;
-export const COMPANION_VERSION = '0.3.8';
+export const COMPANION_VERSION = '0.4.0';
 export const importTaskSchema = z.object({
   schemaVersion: z.literal(1),
   taskId: idSchema,
@@ -520,6 +523,34 @@ export function validateEvidence(input: TaskInput, output: AgentOutput): string[
     if (r.sourceIds.some((id) => !approved.has(id)))
       errors.push('Requirement cites an unapproved source');
   }
+  // Cover letter numbers must already exist in approved profile facts or the posting itself.
+  // Compare whole numeric tokens from human-readable fields only; IDs and URLs contain digits.
+  const numberTokens = (value: string) =>
+    (value.match(/\d[\d,.]*/g) ?? []).map((n) => n.replace(/[.,]+$/, ''));
+  const facts = [...approved.values()].flatMap((r) => [
+    r.title,
+    r.organization,
+    r.startDate,
+    r.endDate,
+    r.contributions,
+    r.accomplishments,
+    r.gpa,
+    ...r.technologies,
+    ...r.metrics.flatMap((m) => [m.value, m.context]),
+  ]);
+  const supported = new Set(
+    numberTokens(
+      [
+        ...facts,
+        input.job.company,
+        input.job.title,
+        input.job.description,
+        input.job.location,
+      ].join(' '),
+    ),
+  );
+  if (numberTokens(output.coverLetter ?? '').some((n) => !supported.has(n)))
+    errors.push('Cover letter numeric claim lacks profile or posting support');
   if (input.priorOutput) {
     const before = input.priorOutput.resume;
     for (const id of input.lockedSectionIds) {

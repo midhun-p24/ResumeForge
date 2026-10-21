@@ -1,6 +1,10 @@
 import type { AgentOutput, TaskInput } from '@resumeforge/contracts';
 
-export const MIN_ENTRY_BULLETS = 3;
+// Most relevant entries earn three or four bullets; supporting entries may use one or two.
+export const MIN_ENTRY_BULLETS = 1;
+export const MAX_ENTRY_BULLETS = 4;
+// Automatic trimming keeps at least this many bullets before dropping a whole entry.
+export const TRIM_FLOOR_BULLETS = 2;
 export function contentKind(input: TaskInput, sourceId: string) {
   const kind = input.profile.records.find((r) => r.id === sourceId)?.kind;
   return kind === 'experience' || kind === 'research'
@@ -15,7 +19,7 @@ export function pinnedEntry(input: TaskInput, sectionId: string, bullets: { id: 
     bullets.some((b) => input.lockedBulletIds.includes(b.id))
   );
 }
-export function minimumBulletIssues(input: TaskInput, output: AgentOutput): string[] {
+export function bulletCountIssues(input: TaskInput, output: AgentOutput): string[] {
   if (input.operation === 'render') return [];
   return output.resume.sections.flatMap((s) =>
     s.entries.flatMap((e) => {
@@ -23,22 +27,14 @@ export function minimumBulletIssues(input: TaskInput, output: AgentOutput): stri
       const distinct = new Set(
         e.bullets.map((b) => b.text.toLowerCase().replace(/\W+/g, ' ').trim()),
       );
-      return distinct.size != MIN_ENTRY_BULLETS || e.bullets.length != MIN_ENTRY_BULLETS
+      return distinct.size !== e.bullets.length ||
+        e.bullets.length < MIN_ENTRY_BULLETS ||
+        e.bullets.length > MAX_ENTRY_BULLETS
         ? [
-            `Entry ${e.sourceId} needs exactly three distinct supported bullets; omit it if evidence is insufficient. Never pad or invent facts.`,
+            `Entry ${e.sourceId} needs one to four distinct supported bullets; omit it if evidence is insufficient. Never pad or invent facts.`,
           ]
         : [];
     }),
-  );
-}
-export function hasShallowLockedEntry(input: TaskInput, output: AgentOutput): boolean {
-  return output.resume.sections.some((s) =>
-    s.entries.some(
-      (e) =>
-        contentKind(input, e.sourceId) &&
-        pinnedEntry(input, s.id, e.bullets) &&
-        e.bullets.length !== MIN_ENTRY_BULLETS,
-    ),
   );
 }
 

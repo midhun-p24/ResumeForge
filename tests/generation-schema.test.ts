@@ -29,11 +29,12 @@ it('restores omitted emphasis without changing locked legacy sections', () => {
   input.operation = 'revise';
   input.priorOutput = structuredClone(output);
   input.lockedSectionIds = output.resume.sections.map((section) => section.id);
-  const wire = structuredClone(output);
+  const wire = { ...structuredClone(output), coverLetter: 'Dear Example Systems Hiring Team,' };
   for (const section of wire.resume.sections)
     for (const entry of section.entries)
       for (const bullet of entry.bullets) Object.assign(bullet, { emphasis: null });
-  expect(parseGeneratedAgentOutput(wire)).toEqual(output);
+  expect(parseGeneratedAgentOutput(wire)).toEqual({ ...output, coverLetter: wire.coverLetter });
+  expect(() => parseGeneratedAgentOutput({ ...wire, coverLetter: undefined })).toThrow();
   expect(validateEvidence(input, parseGeneratedAgentOutput(wire))).toEqual([]);
   const bullet = wire.resume.sections[0].entries[0].bullets[0];
   bullet.emphasis = [];

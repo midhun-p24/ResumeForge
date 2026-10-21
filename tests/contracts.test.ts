@@ -41,6 +41,19 @@ describe('shared contract and provenance', () => {
       'Numeric bullet claim lacks an approved metric',
     );
   });
+  it('accepts cover letters grounded in the profile or posting and rejects invented numbers', () => {
+    const { input, output } = fixture();
+    expect(agentOutputSchema.safeParse(output).success).toBe(true);
+    output.coverLetter =
+      'Dear Example Systems Hiring Team,\n\nMy queue project cut duplicate processing by 25%.\n\nSincerely,\nAlex Example';
+    expect(validateEvidence(input, output)).toEqual([]);
+    output.coverLetter = 'I led a team of 40 engineers.';
+    expect(validateEvidence(input, output)).toContain(
+      'Cover letter numeric claim lacks profile or posting support',
+    );
+    output.coverLetter = 'x'.repeat(4001);
+    expect(agentOutputSchema.safeParse(output).success).toBe(false);
+  });
   it('requires metric ownership as well as a metric ID', () => {
     const { input, output } = fixture();
     output.resume.sections[0].entries[0].bullets[0].metricIds = [
