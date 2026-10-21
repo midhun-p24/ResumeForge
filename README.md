@@ -19,7 +19,7 @@ No public user's tasks run through the owner's computer or Codex account.
 The companion is a public, allowlisted runtime download; private GitHub access is unnecessary:
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.3.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.4.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

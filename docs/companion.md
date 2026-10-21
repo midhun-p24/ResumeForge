@@ -1,5 +1,23 @@
 # Companion installation and connection
 
+## 0.5.4: keep metrics and awards, add posting skills, fewer wasted turns
+
+The first page that 0.5.3 produced on free Codex was full and clean, but two later
+whole-document expansions brought back short last lines; trimming also dropped research metrics
+the model had listed last; awards and some posting skills were missing.
+
+- Fill counts toward page quality only up to 90%, and short lines cost more, so a clean 92% page
+  beats a 100% page with flawed lines. Whole-document expansion happens at most once, and only
+  below 85% fill; otherwise turns polish specific lines.
+- Trimming removes plain bullets before bullets with numbers or bold (never an entry's last
+  bullet), and the writer is told to lead each entry with its strongest sourced metric.
+- Skills check: items from the sources' "Category: a, b, c" lines that the posting mentions but
+  the resume does not (for example HTML, CSS, React) are sent back to be put at the front of the
+  matching skills rows. The posting itself never counts as a source, so posting-only skills such
+  as Kubernetes are never pushed onto the resume (this fixes a 0.5.2 check that did).
+- Awards check: placed awards in the sources (first/second/third place) whose names are absent
+  from the education honors line are sent back as an `honors` replacement edit.
+
 ## 0.5.3: edit-based polish, resilient compiles
 
 A live 0.5.2 run fitted the page to 99% in one turn, but each polish turn rewrote the whole
@@ -137,7 +155,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.3.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.4.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup
