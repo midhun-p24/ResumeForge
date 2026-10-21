@@ -3,9 +3,7 @@ import type { ResumeDoc } from '@resumeforge/contracts';
 import {
   draftMessage,
   fitByTrimming,
-  insertMissingSkills,
   missingAwards,
-  missingPostingSkills,
   missingSourcedKeywords,
   applyEdits,
   polishFeedback,
@@ -258,7 +256,7 @@ it('names widows with targets, wrapped skills, collisions, missing keywords and 
   expect(text).toContain('Cut at least 14 characters');
   expect(text).toContain('Languages');
   expect(text).toContain('"Queue Visualizer"');
-  expect(text).toContain('the sources support but the resume never mentions: PostgreSQL');
+  expect(text).toContain('in the sources but nowhere in the resume: PostgreSQL');
   expect(text).not.toContain('Kubernetes');
   expect(text).toContain('No bullet uses bold');
   expect(missingSourcedKeywords(input, doc)).toEqual(['PostgreSQL']);
@@ -298,8 +296,7 @@ it('respects the turn budget, reports true keyword coverage and flags unsourced 
   renamed.keywords = [{ keyword: 'Kubernetes', covered: true, where: 'Skills' }];
   const s = session(wire(renamed), wire(renamed), wire(renamed));
   const result = await writeResume(input, s, async () => measured({ pageFill: 0.5 }), stage, 3);
-  // A sparse page gets one expansion, never a loop of whole-document rewrites.
-  expect(s.send).toHaveBeenCalledTimes(2);
+  expect(s.send).toHaveBeenCalledTimes(3);
   expect(result.doc.keywords[0].covered).toBe(false);
   expect(result.doc.notes.join(' ')).toContain('Quantum Ledger Platform');
 });
@@ -320,61 +317,42 @@ it('strips schema keywords Claude structured outputs do not accept', () => {
   });
 });
 
-it('trims plain bullets before bullets that carry metrics or bold', () => {
-  const { doc } = docFixture();
-  doc.sections[2].entries[0].bullets = [
-    'Wrote PostgreSQL migrations reviewed in code reviews.',
-    'Cut duplicate processing by **25%** with a TypeScript task queue.',
-    'Documented the TypeScript task queue for operators.',
+it('never treats the posting as evidence for a missing keyword', () => {
+  const { input, doc } = docFixture();
+  input.job.description += ' Kubernetes experience is a plus.';
+  doc.keywords = [
+    { keyword: 'Kubernetes', covered: false, where: '' },
+    { keyword: 'PostgreSQL', covered: false, where: '' },
   ];
-  const kept = trimTo(doc, 2).sections[2].entries[0].bullets;
-  expect(kept).toEqual(['Cut duplicate processing by **25%** with a TypeScript task queue.']);
+  doc.sections[2].entries[0].bullets = ['Cut duplicate processing by **25%** with a queue.'];
+  expect(missingSourcedKeywords(input, doc)).not.toContain('Kubernetes');
 });
 
-it('prefers a clean page over a fuller page with flawed lines', async () => {
-  const { quality } = await import('../apps/companion/src/writer');
-  expect(quality(measured({ pageFill: 0.92 }))).toBeGreaterThan(
-    quality(measured({ pageFill: 1, shortBullets: ['a', 'b', 'c'] })),
-  );
-});
-
-it('does not rewrite the whole document for a nearly full page', async () => {
-  const { input, doc } = docFixture();
-  const s = session(wire(doc));
-  await writeResume(input, s, async () => measured({ pageFill: 0.88 }), stage);
-  expect(s.send).toHaveBeenCalledTimes(1);
-});
-
-it('flags posting skills only when the candidate sources support them', () => {
-  const { input, doc } = docFixture();
-  input.profile.masterText += '\nLanguages: TypeScript, SQL, HTML/CSS, Go, C#';
-  input.job.description += ' You know HTML, CSS, C#, Go and Kubernetes.';
-  doc.keywords = [{ keyword: 'Kubernetes', covered: false, where: '' }];
-  const missing = missingPostingSkills(input, doc);
-  expect(missing).toEqual(expect.arrayContaining(['HTML', 'CSS', 'C#']));
-  // In the posting but not the sources: never pushed onto the resume. Too short to match safely.
-  expect(missing).not.toContain('Kubernetes');
-  expect(missing).not.toContain('Go');
-});
-
-it('names placed awards that are missing from the honors line', () => {
+it('names placed awards that are missing from the honors line, once each', () => {
   const { input, doc } = docFixture();
   input.profile.masterText +=
-    '\nAWARDS\nFirst Place Technical Paper, NASA MINDS 2025 (team award)\n1st place, ECoG Data Analysis, BR41N.IO Hackathon at IEEE SMC 2026';
+    '\n- Co-led the NASA MINDS 2025 team, which won first place for its paper.\nAWARDS\nFirst Place Technical Paper, NASA MINDS 2025 (team award)\n1st place, ECoG Data Analysis, BR41N.IO Hackathon at IEEE SMC 2026';
   doc.sections[0].entries[0].bullets = ["President's List (2 terms)"];
-  expect(missingAwards(input, doc)).toHaveLength(2);
+  const missing = missingAwards(input, doc);
+  expect(missing).toHaveLength(2);
+  expect(missing[0]).toContain('First Place Technical Paper, NASA MINDS 2025');
   doc.sections[0].entries[0].bullets = [
     '1st Place, NASA MINDS 2025 Paper; 1st Place, IEEE SMC 2026 Hackathon',
   ];
   expect(missingAwards(input, doc)).toEqual([]);
-});
-
-it('inserts sourced posting skills at the front of the matching row in source form', () => {
-  const { input, doc } = docFixture();
-  input.profile.masterText += '\nLanguages: TypeScript, SQL, HTML/CSS, Bash';
-  input.job.description += ' Front-end experience with HTML and CSS.';
-  const next = insertMissingSkills(input, doc);
-  expect(next.sections[1].skills[0].items).toBe('HTML/CSS, TypeScript, SQL');
-  expect(insertMissingSkills(input, next)).toBe(next);
-  expect(doc.sections[1].skills[0].items).toBe('TypeScript, SQL');
+  expect(
+    polishFeedback(
+      input,
+      {
+        render: { status: 'ready', pageCount: 1, warnings: [] },
+        pageFill: 0.97,
+        shortBullets: [],
+        shortTails: [],
+        wrappedSkills: [],
+        headingCollisions: [],
+        overflowLines: 0,
+      },
+      doc,
+    ),
+  ).toEqual([]);
 });

@@ -1,5 +1,20 @@
 # Companion installation and connection
 
+## 0.5.6: 0.5.3 page filling restored, plus awards
+
+The 0.5.4 and 0.5.5 changes to page scoring, expansion, metric-weighted trimming and skills
+insertion made pages emptier and less balanced in live use. The writer is restored to 0.5.3
+exactly, with only these additions:
+
+- Awards check: placed awards in the sources missing from the education honors line are sent
+  back as an `honors` replacement edit (counted in the per-turn log).
+- The missing-keyword check reads only the candidate's own sources, never the posting, so
+  posting-only skills such as Kubernetes are never requested.
+- Rendering collapses line breaks in model text and drops whitespace-only bullets, which had
+  left blank gaps inside entries.
+
+The 0.5.4 and 0.5.5 notes below describe changes that are no longer active.
+
 ## 0.5.5: whitespace-safe rendering, deterministic skills
 
 - Line breaks inside model text are collapsed before rendering. A newline in a bullet had become
@@ -166,7 +181,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.5.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.6.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

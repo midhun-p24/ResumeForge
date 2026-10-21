@@ -139,3 +139,10 @@ it('never lets line breaks in model text become TeX paragraph breaks', () => {
   expect(tex).toContain('\\resumeItem{Cut duplicate processing by \\textbf{25\\%} with a queue.}');
   expect(tex).toContain('\\resumeSubheading{Software Intern}');
 });
+
+it('drops whitespace-only bullets instead of leaving a blank gap', () => {
+  const { input, doc } = docFixture();
+  const clean = renderLatex(input.profile, doc);
+  doc.sections[2].entries[0].bullets.push('   ', '\n\n', '** **');
+  expect(renderLatex(input.profile, doc)).toBe(clean);
+});

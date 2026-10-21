@@ -167,12 +167,15 @@ export function renderDocBullet(raw: string): string {
 /** Version 2 documents: the writer chose every heading, date, location and stack. */
 export function renderJakeDoc(profile: Profile, doc: ResumeDoc): string {
   const e = (text: string) => escapeLatex(oneLine(text));
-  const bulletList = (bullets: string[]) =>
-    bullets.length
+  // A whitespace-only bullet renders as an invisible item: a blank gap with no bullet mark.
+  const bulletList = (raw: string[]) => {
+    const bullets = raw.filter((b) => oneLine(b.replaceAll('**', '')));
+    return bullets.length
       ? '\n\\resumeItemListStart\n' +
-        bullets.map((b) => `\\resumeItem{${renderDocBullet(b)}}`).join('\n') +
-        '\n\\resumeItemListEnd'
+          bullets.map((b) => `\\resumeItem{${renderDocBullet(b)}}`).join('\n') +
+          '\n\\resumeItemListEnd'
       : '';
+  };
   const sections = doc.sections.map((section) => {
     if (section.kind === 'skills') {
       const lines = section.skills.map((s) => `\\textbf{${e(s.category)}}{: ${e(s.items)}}`);

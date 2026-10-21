@@ -61,9 +61,7 @@ into the date. Fonts and margins are fixed.
 FITTING: the companion fits the page for you by compiling and removing your least important
 bullets. So for the first draft write MORE than fits: about a third more bullets than one page
 holds, every entry with three or four bullets, entries ordered by relevance and each entry's
-bullets ordered from most to least important. Lead each entry with its strongest sourced metric
-or result (for research: the measured improvement and the paper), and bold it; plain bullets
-are trimmed before bullets with numbers. Later you may be asked to polish specific lines;
+bullets ordered from most to least important. Later you may be asked to polish specific lines;
 then edit only what is named and keep the same entries and number of bullets.
 
 FIELDS
@@ -129,10 +127,8 @@ export type Measured = {
 };
 type Candidate<T> = { doc: ResumeDoc; compiled: T };
 
-// A page at or above this fill reads as full; extra fill earns nothing over clean lines.
-export const TARGET_FILL = 0.9;
-// Only below this is a whole-document expansion worth its risk; above it, polish lines instead.
-export const SPARSE_FILL = 0.85;
+// Below this fill the page reads as sparse. 1 - fill of the usable 10.2in height, ~12pt per line.
+export const TARGET_FILL = 0.93;
 const USABLE_LINES = (792 - 57.6) / 12.1;
 
 /** One log line per compiled attempt, so a weak result can be explained afterwards. */
@@ -148,40 +144,25 @@ export function describeMeasured(m: Measured): string {
 }
 
 const onePage = (m: Measured) => m.render.pageCount === 1;
-// Fill counts up to TARGET_FILL only, so a clean 92% page beats a 100% page with flawed lines.
-export const quality = (m: Measured) =>
+const quality = (m: Measured) =>
   (m.render.status === 'ready' ? 10 : 0) +
-  Math.min(m.pageFill, TARGET_FILL) * 100 -
-  6 * (m.shortBullets.length + m.wrappedSkills.length) -
+  Math.min(m.pageFill, 1) * 100 -
+  4 * (m.shortBullets.length + m.wrappedSkills.length) -
   10 * m.headingCollisions.length;
-
-/** Bullets carrying numbers or bold are the evidence recruiters scan for; trim them last. */
-const bulletWeight = (bullet: string) =>
-  (/\d/.test(bullet) ? 2 : 0) + (bullet.includes('**') ? 1 : 0);
 
 type Removal = { si: number; ei: number; bi?: number };
 /**
- * Removals from least to most important: plain bullets before ones with metrics or bold, deeper
- * bullets and later entries first, never an entry's last bullet; then whole entries from the end,
- * keeping one entry per section.
+ * Removals from least to most important: the deepest bullet of the latest entry first, keeping
+ * every entry's first bullet; then whole entries from the end, keeping one entry per section.
  */
 export function removalOrder(doc: ResumeDoc): Removal[] {
   const entries = doc.sections
     .flatMap((s, si) => (s.kind === 'entries' ? s.entries.map((e, ei) => ({ si, ei, e })) : []))
     .reverse();
-  const bullets = entries
-    .flatMap(({ si, ei, e }, order) =>
-      e.bullets.map((b, bi) => ({ si, ei, bi, order, weight: bulletWeight(b) })),
-    )
-    .sort((a, b) => a.weight - b.weight || b.bi - a.bi || a.order - b.order);
-  const remaining = new Map(entries.map(({ si, ei, e }) => [`${si}:${ei}`, e.bullets.length]));
   const steps: Removal[] = [];
-  for (const { si, ei, bi } of bullets) {
-    const key = `${si}:${ei}`;
-    if (remaining.get(key)! <= 1) continue;
-    remaining.set(key, remaining.get(key)! - 1);
-    steps.push({ si, ei, bi });
-  }
+  const deepest = Math.max(0, ...entries.map(({ e }) => e.bullets.length));
+  for (let bi = deepest - 1; bi >= 1; bi--)
+    for (const { si, ei, e } of entries) if (e.bullets.length > bi) steps.push({ si, ei, bi });
   for (const { si, ei } of entries) if (ei > 0) steps.push({ si, ei });
   return steps;
 }
@@ -234,81 +215,16 @@ const resumeText = (doc: ResumeDoc) =>
     ])
     .join('\n')
     .toLowerCase();
-/** Posting keywords the sources support but the resume never mentions. */
-export function missingSourcedKeywords(input: TaskInput, doc: ResumeDoc): string[] {
-  return missingPostingSkills(input, doc);
-}
-
 /** The candidate's own texts, excluding the posting (which must never count as evidence). */
 const candidateText = (input: TaskInput) =>
   [input.profile.masterText, input.profile.portfolioText, input.profile.referenceResume].join('\n');
-const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const mentions = (text: string, term: string) =>
-  new RegExp(`(^|[^a-z0-9])${escapeRegex(term.toLowerCase())}([^a-z0-9]|$)`).test(
-    text.toLowerCase(),
-  );
-/** Items from "Category: a, b, c" skill lines in the sources, split on commas and slashes. */
-export function sourceSkills(input: TaskInput): string[] {
-  const items = candidateText(input)
-    .split(/\r?\n/)
-    .filter((line) => /:\s*[^,]+(,[^,]+){2,}/.test(line))
-    .flatMap((line) => line.slice(line.indexOf(':') + 1).split(/[,;]/))
-    .flatMap((item) => item.split('/'))
-    .map((item) => item.replace(/\(.*?\)/g, '').trim())
-    // Very short words ("Go", "R") match ordinary prose; keep symbols like C# and C++.
-    .filter((item) => (item.length >= 3 || /[#+]/.test(item)) && item.length <= 30);
-  return [...new Set(items)];
-}
-/** Posting skills the candidate's sources support but the resume never mentions. */
-export function missingPostingSkills(input: TaskInput, doc: ResumeDoc): string[] {
-  const sources = candidateText(input);
+/** Posting keywords the candidate's sources support but the resume never mentions. */
+export function missingSourcedKeywords(input: TaskInput, doc: ResumeDoc): string[] {
   const resume = resumeText(doc);
-  const terms = [...sourceSkills(input), ...doc.keywords.map((k) => k.keyword)];
-  const missing = terms.filter(
-    (t) => mentions(input.job.description, t) && mentions(sources, t) && !mentions(resume, t),
-  );
-  return [...new Set(missing.map((t) => t.trim()))].slice(0, 10);
-}
-/**
- * Put sourced skills the posting asks for at the front of the matching skills row, using the
- * sources' own item form ("HTML/CSS") and row (by category name, else the first row). Layout
- * checks then catch a row that grows too long.
- */
-export function insertMissingSkills(input: TaskInput, doc: ResumeDoc): ResumeDoc {
-  const missing = missingPostingSkills(input, doc);
-  const rows = doc.sections.flatMap((s) => s.skills);
-  if (!missing.length || !rows.length) return doc;
-  const next = structuredClone(doc);
-  const nextRows = next.sections.flatMap((s) => s.skills);
-  const added = new Set<string>();
-  for (const line of candidateText(input).split(/\r?\n/)) {
-    if (!/:\s*[^,]+(,[^,]+){2,}/.test(line)) continue;
-    const label = line.slice(0, line.indexOf(':')).trim();
-    const matching = nextRows.find((r) => {
-      const words = r.category.toLowerCase().match(/[a-z]{4,}/g) ?? [];
-      return words.some((w) => label.toLowerCase().includes(w));
-    });
-    for (const item of line
-      .slice(line.indexOf(':') + 1)
-      .split(/[,;]/)
-      .map((i) => i.trim())) {
-      // "HTML/CSS" names CSS; "Tailwind CSS" does not, so it is never added for CSS.
-      const parts = item.split('/').map((p) => p.trim().toLowerCase());
-      if (!item || added.has(item) || !missing.some((m) => parts.includes(m.toLowerCase())))
-        continue;
-      added.add(item);
-      let row = matching;
-      // No row for this category: add one named after the source category while there is room.
-      if (!row && nextRows.length < 5) {
-        row = { category: label, items: '' };
-        next.sections.find((s) => s.kind === 'skills')!.skills.push(row);
-        nextRows.push(row);
-      }
-      row ??= nextRows[0];
-      row.items = row.items ? `${item}, ${row.items}` : item;
-    }
-  }
-  return added.size ? next : doc;
+  const sources = candidateText(input).toLowerCase();
+  return doc.keywords
+    .map((k) => k.keyword)
+    .filter((k) => !resume.includes(k.toLowerCase()) && sources.includes(k.toLowerCase()));
 }
 const awardStopwords = new Set(['First', 'Second', 'Third', 'Place', 'Team', 'Award', 'The']);
 /** Placed awards in the sources whose distinctive names never reach the education honors line. */
@@ -363,10 +279,10 @@ export function polishFeedback(input: TaskInput, measured: Measured, doc: Resume
     feedback.push(
       `These headings run into their date: ${measured.headingCollisions.map((h) => `"${h}"`).join(', ')}. Give each a plain name with no notes in parentheses and a stack of three or four technologies.`,
     );
-  const missing = missingPostingSkills(input, doc);
+  const missing = missingSourcedKeywords(input, doc);
   if (missing.length)
     feedback.push(
-      `The posting asks for these skills, which the sources support but the resume never mentions: ${missing.join(', ')}. Put them at the front of the matching skills rows (keep each row one line, dropping a less relevant item if needed).`,
+      `These posting keywords are in the sources but nowhere in the resume: ${missing.join(', ')}. Add them to the matching skills row (keep it one line) or to a relevant bullet without lengthening it.`,
     );
   const awards = missingAwards(input, doc);
   if (awards.length)
@@ -480,9 +396,7 @@ export async function writeResume<T extends Measured>(
     }
   };
   /** Validate, compile, fit and record a candidate; returns why it was rejected, if it was. */
-  const consider = async (proposed: ResumeDoc, turn: number): Promise<string | null> => {
-    let doc = insertMissingSkills(input, proposed);
-    if (doc !== proposed) log(`Turn ${turn}: added sourced posting skills to the skills rows`);
+  const consider = async (doc: ResumeDoc, turn: number): Promise<string | null> => {
     lastDoc = doc;
     diagnostics = validateDoc(input, doc);
     if (diagnostics.length) {
@@ -530,12 +444,9 @@ export async function writeResume<T extends Measured>(
   }
   // Polish turns: small edits on the best fitted page, or one expansion if it is sparse.
   let note = '';
-  let expanded = false;
   while (turn < maxTurns && (state.best ?? state.last)) {
     const base: Candidate<T> = state.best ?? state.last!;
-    // At most one whole-document expansion, and only for a genuinely sparse page.
-    const sparse: boolean =
-      !expanded && onePage(base.compiled) && base.compiled.pageFill < SPARSE_FILL;
+    const sparse = onePage(base.compiled) && base.compiled.pageFill < TARGET_FILL;
     const tooLong = !onePage(base.compiled);
     const feedback = polishFeedback(input, base.compiled, base.doc);
     if (!sparse && !tooLong && !feedback.length) break;
@@ -543,7 +454,6 @@ export async function writeResume<T extends Measured>(
     await onStage('Writing resume');
     const current = block('current_resume_json', JSON.stringify(base.doc));
     if (sparse || tooLong) {
-      expanded ||= sparse;
       prompt = tooLong
         ? `Even after removing the least important lines the resume is longer than one page. Return the complete JSON with fewer entries and shorter bullets.\n${current}`
         : `The fitted page is only ${Math.round(base.compiled.pageFill * 100)}% full; about ${Math.round((1 - base.compiled.pageFill) * USABLE_LINES)} printed lines are empty. Return the complete JSON with more sourced bullets for the most relevant entries and the next most relevant role or project. Overshooting is fine: the least important lines are trimmed automatically.\n${current}`;
