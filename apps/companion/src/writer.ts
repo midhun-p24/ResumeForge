@@ -216,6 +216,63 @@ const resumeText = (doc: ResumeDoc) =>
     ])
     .join('\n')
     .toLowerCase();
+const awardStopwords = new Set(['First', 'Second', 'Third', 'Place', 'Team', 'Award', 'The']);
+const leadsWithPlace = (line: string) =>
+  /^[\s\-•*]*(1st|first|2nd|second|3rd|third)\s+place\b/i.test(line) ? 1 : 0;
+const awardNames = (text: string) =>
+  (text.match(/\b[A-Z][A-Za-z0-9.]{2,}\b/g) ?? []).filter((w) => !awardStopwords.has(w));
+/**
+ * Placed awards (first/second/third place) from the candidate's own sources, one per award,
+ * phrased from its shortest mention. Parenthetical notes are dropped except team credit.
+ */
+export function sourcedAwards(input: TaskInput): string[] {
+  const lines = [
+    input.profile.masterText,
+    input.profile.portfolioText,
+    input.profile.referenceResume,
+  ]
+    .join('\n')
+    .split(/\r?\n/)
+    .filter((line) => /\b(1st|first|2nd|second|3rd|third)\s+place\b/i.test(line))
+    // Award-list lines ("First Place ...") before sentences that mention one, then shortest.
+    .sort((a, b) => leadsWithPlace(b) - leadsWithPlace(a) || a.length - b.length);
+  // Acronym-like names (NASA, MINDS, IEEE, BR41N.IO) identify one award across its mentions.
+  const seen = new Set<string>();
+  const awards: string[] = [];
+  for (const line of lines) {
+    const ids = awardNames(line).filter((w) => (w.match(/[A-Z]/g) ?? []).length >= 2);
+    if (!ids.length || ids.some((id) => seen.has(id))) continue;
+    ids.forEach((id) => seen.add(id));
+    const team = /\(([^)]*\bteam\b[^)]*)\)/i.test(line) ? ' (team)' : '';
+    const text = line
+      .replace(/^[\s\-•*]+/, '')
+      .replace(/\s*\([^)]*\)/g, '')
+      .replace(/[.;:\s]+$/, '')
+      .trim();
+    if (text.length <= 140) awards.push(text + team);
+  }
+  return awards;
+}
+/**
+ * The document with every sourced award the honors line lacks placed at its front, or null when
+ * nothing is missing. Written by the companion, so the model's wording elsewhere is untouched.
+ */
+export function withAwards(input: TaskInput, doc: ResumeDoc): ResumeDoc | null {
+  const next = structuredClone(doc);
+  const education = next.sections.find((s) => s.kind === 'education')?.entries[0];
+  if (!education) return null;
+  const honors = education.bullets[0] ?? '';
+  const missing = sourcedAwards(input).filter(
+    (award) => !awardNames(award).some((n) => honors.toLowerCase().includes(n.toLowerCase())),
+  );
+  if (!missing.length) return null;
+  education.bullets = [
+    [...missing, honors].filter(Boolean).join('; '),
+    ...education.bullets.slice(1),
+  ];
+  return next;
+}
+
 /** Posting keywords the sources support but the resume never mentions. */
 export function missingSourcedKeywords(input: TaskInput, doc: ResumeDoc): string[] {
   const resume = resumeText(doc);
@@ -442,8 +499,24 @@ export async function writeResume<T extends Measured>(
     const problem = await consider(doc, turn);
     note = problem ? `\nYour last edits were rejected: ${problem}` : '';
   }
-  const chosen: Candidate<T> | null = state.best ?? state.last;
+  let chosen: Candidate<T> | null = state.best ?? state.last;
   if (!chosen) throw new AgentFailure('INVALID_OUTPUT', lastDoc, undefined, diagnostics);
+  // Awards go on the honors line last, without a model call, so the writing is unchanged. If the
+  // longer line pushes the page over, only the least important line is trimmed to fit.
+  const awarded = withAwards(input, chosen.doc);
+  if (awarded) {
+    let doc = awarded;
+    let compiled = await safeCompile(awarded);
+    if (compiled && !onePage(compiled)) {
+      const fitted = await fitByTrimming(awarded, safeCompile);
+      compiled = fitted?.compiled ?? null;
+      if (fitted) doc = fitted.doc;
+    }
+    if (compiled && onePage(compiled)) {
+      chosen = { doc, compiled };
+      log(`Awards added to the honors line: ${describeMeasured(compiled)}`);
+    } else log('Awards could not be added within one page; kept the page without them');
+  }
   // Report keyword coverage from the final text rather than the model's own claim.
   const text = resumeText(chosen.doc);
   chosen.doc.keywords = chosen.doc.keywords.map((k) => ({

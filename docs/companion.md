@@ -1,5 +1,14 @@
 # Companion installation and connection
 
+## 0.5.7: awards added after writing
+
+Writing, page fitting and polishing are exactly as in 0.5.3 (0.5.4-0.5.6 were rolled back).
+After the writer picks its page, the companion itself adds every placed award from the sources
+(first/second/third place) that the education honors line lacks, phrased from its award-list
+mention with team credit kept, at the front of the honors line. No model call is made. If the
+longer line pushes the page over, only the least important lines are trimmed to fit; if it
+still cannot fit, the page is kept without them and the log says so.
+
 ## 0.5.3: edit-based polish, resilient compiles
 
 A live 0.5.2 run fitted the page to 99% in one turn, but each polish turn rewrote the whole
@@ -137,7 +146,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.3.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.7.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

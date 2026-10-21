@@ -7,6 +7,8 @@ import {
   applyEdits,
   polishFeedback,
   removalOrder,
+  sourcedAwards,
+  withAwards,
   trimTo,
   writeResume,
   type Measured,
@@ -309,4 +311,46 @@ it('strips schema keywords Claude structured outputs do not accept', () => {
     type: 'object',
     properties: { a: { type: 'string' }, b: { type: 'array', items: {} } },
   });
+});
+
+const awardsSource =
+  '\n- Co-led the NASA MINDS 2025 team, which won first place for its technical paper.\nAWARDS\nFirst Place Technical Paper, NASA MINDS 2025 (team award, lunar swarm simulation)\nFirst Place, ECoG Data Analysis category, BR41N.IO Hackathon at IEEE SMC 2026 (team award)';
+
+it('phrases each sourced award once, from its shortest mention', () => {
+  const { input } = docFixture();
+  input.profile.masterText += awardsSource;
+  expect(sourcedAwards(input)).toEqual([
+    'First Place Technical Paper, NASA MINDS 2025 (team)',
+    'First Place, ECoG Data Analysis category, BR41N.IO Hackathon at IEEE SMC 2026 (team)',
+  ]);
+});
+
+it('puts missing awards at the front of the honors line and leaves everything else alone', () => {
+  const { input, doc } = docFixture();
+  input.profile.masterText += awardsSource;
+  doc.sections[0].entries[0].bullets = ["President's List (2 terms)"];
+  const next = withAwards(input, doc)!;
+  expect(next.sections[0].entries[0].bullets[0]).toBe(
+    "First Place Technical Paper, NASA MINDS 2025 (team); First Place, ECoG Data Analysis category, BR41N.IO Hackathon at IEEE SMC 2026 (team); President's List (2 terms)",
+  );
+  expect(next.sections.slice(1)).toEqual(doc.sections.slice(1));
+  expect(withAwards(input, next)).toBeNull();
+});
+
+it('adds awards after writing without another model call, trimming only if it overflows', async () => {
+  const { input, doc } = docFixture();
+  input.profile.masterText += awardsSource;
+  doc.sections[0].entries[0].bullets = ["President's List"];
+  const s = session(wire(doc));
+  const lines: string[] = [];
+  const compile = vi.fn(async (d: ResumeDoc) =>
+    d.sections[0].entries[0].bullets[0].includes('NASA') && bulletCount(d) > 3
+      ? measured({ render: { status: 'overflow', pageCount: 2, warnings: [] }, overflowLines: 1 })
+      : measured(),
+  );
+  const result = await writeResume(input, s, compile, stage, 5, (l) => lines.push(l));
+  expect(s.send).toHaveBeenCalledTimes(1);
+  expect(result.doc.sections[0].entries[0].bullets[0]).toContain('NASA MINDS 2025');
+  expect(result.compiled.render.pageCount).toBe(1);
+  expect(lines.join('\n')).toContain('Awards added to the honors line');
 });
