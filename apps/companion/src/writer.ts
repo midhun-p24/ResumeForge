@@ -170,20 +170,50 @@ const quality = (m: Measured) =>
   10 * m.headingCollisions.length;
 
 type Removal = { si: number; ei: number; bi?: number };
+/** The writer orders entries by relevance; the first ones in each section are its top entries. */
+export const TOP_ENTRIES = 3;
+/** Bullets kept on top entries until every lower-priority entry is gone. */
+export const TOP_BULLETS = 3;
 /**
- * Removals from least to most important: the deepest bullet of the latest entry first, keeping
- * every entry's first bullet; then whole entries from the end, keeping one entry per section.
+ * Removals from least to most important, so a short page keeps depth on its strongest entries:
+ * 1. bullets beyond the third on any entry;
+ * 2. lower-priority entries (beyond the top ones in each section) thinned to two bullets;
+ * 3. lower-priority entries dropped whole, those without any number first, then latest first;
+ * 4. only then the top entries' third, then second bullets (every entry keeps its first);
+ * 5. finally top entries from the end, keeping one entry per section.
+ * Within each step later entries go first.
  */
 export function removalOrder(doc: ResumeDoc): Removal[] {
   const entries = doc.sections
     .flatMap((s, si) => (s.kind === 'entries' ? s.entries.map((e, ei) => ({ si, ei, e })) : []))
     .reverse();
-  const steps: Removal[] = [];
-  const deepest = Math.max(0, ...entries.map(({ e }) => e.bullets.length));
-  for (let bi = deepest - 1; bi >= 1; bi--)
-    for (const { si, ei, e } of entries) if (e.bullets.length > bi) steps.push({ si, ei, bi });
-  for (const { si, ei } of entries) if (ei > 0) steps.push({ si, ei });
-  return steps;
+  const top = entries.filter(({ ei }) => ei < TOP_ENTRIES);
+  const lower = entries.filter(({ ei }) => ei >= TOP_ENTRIES);
+  const bulletsFrom = (list: typeof entries, from: number) => {
+    const steps: Removal[] = [];
+    const deepest = Math.max(0, ...list.map(({ e }) => e.bullets.length));
+    for (let bi = deepest - 1; bi >= from; bi--)
+      for (const { si, ei, e } of list) if (e.bullets.length > bi) steps.push({ si, ei, bi });
+    return steps;
+  };
+  // A metric is a standalone number ("44 tests", "0.045", "20%"), not a year or part of a name
+  // such as DREAM2AI.
+  const hasNumber = ({ e }: (typeof entries)[number]) =>
+    e.bullets.some((b) =>
+      (b.match(/(?<![A-Za-z\d.])\d[\d,.]*%?(?![A-Za-z\d])/g) ?? []).some(
+        (n) => !/^(19|20)\d\d$/.test(n.replace(/[.,]+$/, '')),
+      ),
+    );
+  return [
+    ...bulletsFrom(entries, TOP_BULLETS),
+    ...bulletsFrom(lower, 2).filter((r) => r.bi! < TOP_BULLETS),
+    // Stable sort keeps "latest first" within each group; entries without metrics go first.
+    ...[...lower]
+      .sort((a, b) => Number(hasNumber(a)) - Number(hasNumber(b)))
+      .map(({ si, ei }) => ({ si, ei })),
+    ...bulletsFrom(top, 1).filter((r) => r.bi! < TOP_BULLETS),
+    ...top.filter(({ ei }) => ei > 0).map(({ si, ei }) => ({ si, ei })),
+  ];
 }
 /** The document with its `count` least important lines removed. */
 export function trimTo(doc: ResumeDoc, count: number): ResumeDoc {

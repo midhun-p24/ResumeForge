@@ -374,3 +374,66 @@ it('never treats the posting as evidence for a missing keyword', () => {
   doc.keywords = [{ keyword: 'Kubernetes', covered: false, where: '' }];
   expect(missingSourcedKeywords(input, doc)).toEqual([]);
 });
+
+it('drops lower-priority entries before thinning the top entries below three bullets', async () => {
+  const { doc } = docFixture();
+  const entry = (heading: string, bullets: string[]) => ({
+    heading,
+    subheading: '',
+    date: '2026',
+    location: '',
+    stack: 'TypeScript',
+    bullets,
+  });
+  const three = (name: string, metric = '') => [
+    `${name} first contribution${metric}.`,
+    `${name} second contribution.`,
+    `${name} third contribution.`,
+  ];
+  doc.sections = [
+    doc.sections[0],
+    doc.sections[1],
+    {
+      title: 'Projects',
+      kind: 'entries',
+      skills: [],
+      entries: [
+        entry('ResumeForge', three('ResumeForge', ' with 44 tests')),
+        entry('FlowLens', three('FlowLens')),
+        entry('SplitWiz', three('SplitWiz')),
+        entry('Dispatch Agent', three('Dispatch')),
+        entry('DREAM2AI', three('DREAM2AI')),
+      ],
+    },
+    {
+      title: 'Experience',
+      kind: 'entries',
+      skills: [],
+      entries: [
+        entry('NIH Research', three('NIH', ' raising AUC by 0.045')),
+        entry('NASA MINDS', three('NASA', ' over 700 tasks')),
+        entry('Systems Team', three('Systems')),
+        entry('USDA Research', three('USDA', ' with 4,500 images')),
+      ],
+    },
+  ];
+  // The page holds 18 bullets: exactly the six top entries with three bullets each.
+  const compile = vi.fn(async (d: ResumeDoc) => (bulletCount(d) > 18 ? overflow() : measured()));
+  const fitted = await fitByTrimming(doc, compile);
+  const kept = fitted!.doc.sections
+    .slice(2)
+    .map((s) => s.entries.map((e) => `${e.heading}:${e.bullets.length}`));
+  expect(kept).toEqual([
+    ['ResumeForge:3', 'FlowLens:3', 'SplitWiz:3'],
+    ['NIH Research:3', 'NASA MINDS:3', 'Systems Team:3'],
+  ]);
+  // Lower entries without metrics are dropped before ones that carry numbers.
+  const order = removalOrder(doc)
+    .filter((r) => r.bi === undefined)
+    .slice(0, 3);
+  expect(order.map((r) => doc.sections[r.si].entries[r.ei].heading)).toEqual([
+    'DREAM2AI',
+    'Dispatch Agent',
+    'USDA Research',
+  ]);
+});

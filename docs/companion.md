@@ -1,5 +1,15 @@
 # Companion installation and connection
 
+## 0.5.10: trimming keeps depth on the top entries
+
+When a draft is too long, the fitter now removes, in order: bullets beyond the third on any entry;
+lower-priority entries (beyond the first three in each section, which the writer orders by
+relevance) thinned to two bullets; those lower-priority entries dropped whole, ones without any
+standalone metric first; only then the top entries' third and second bullets; and finally top
+entries from the end. Previously every entry was thinned evenly, which left a nine-entry page with
+one bullet per role and dropped the strongest metrics. The binary search, scoring, polishing and
+awards step are unchanged.
+
 ## 0.5.9: reviewer judgment and full skills rows
 
 Page fitting is unchanged. The writer instructions gain a hiring-reviewer section: strongest
@@ -171,7 +181,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.9.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.10.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup
