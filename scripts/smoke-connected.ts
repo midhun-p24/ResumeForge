@@ -5,11 +5,12 @@ import { readFile, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { fixture } from '../tests/fixtures';
-import { agentOutputSchema, taskInputSchema, validateEvidence } from '@resumeforge/contracts';
-import type { AgentOutput, WorkspaceData } from '@resumeforge/contracts';
-import { CodexAdapter } from '../apps/companion/src/adapter';
+import { docFixture } from '../tests/fixtures';
+import { taskInputSchema, validateDoc, versionOutputSchema } from '@resumeforge/contracts';
+import type { ResumeDoc, WorkspaceData } from '@resumeforge/contracts';
 import { compileResume } from '../apps/companion/src/render';
+import { loadSettings, openSession } from '../apps/companion/src/providers';
+import { writeResume, WRITER_RULES, writerSchema } from '../apps/companion/src/writer';
 import { testRequest } from './lib/test-http';
 import { smokeBrowser } from './lib/smoke-browser';
 import { smokeSecondUser } from './lib/smoke-second-user';
@@ -83,7 +84,7 @@ try {
   // Fail before storing any profile if the schema has not been deployed.
   const initial = await api<WorkspaceData>('workspace', 'GET', undefined, a.token);
   assert.equal(initial.jobs.length, 0);
-  const { input, output: syntheticOutput } = fixture();
+  const { input, doc: syntheticOutput } = docFixture();
   await api('profile', 'PUT', input.profile, a.token);
   const { id: jobId } = await api<{ id: string }>('jobs', 'POST', input.job, a.token, 201);
   const token = `rf_${randomBytes(32).toString('base64url')}`;
@@ -136,17 +137,12 @@ try {
     excludedSourceIds: [],
   };
   await api('tasks', 'POST', taskArgs, b.token, 404);
-  const adapter = new CodexAdapter();
-  let lastOutput: AgentOutput | null = null;
+  const settings = await loadSettings();
+  let lastOutput: ResumeDoc | null = null;
   async function execute(
     operation: 'tailor' | 'revise' | 'render',
     versionId: string | null = null,
   ) {
-    const locks =
-      lastOutput?.resume.sections
-        .flatMap((s) => s.entries.flatMap((e) => e.bullets))
-        .slice(0, 1)
-        .map((b) => b.id) ?? [];
     const { id: taskId } = await api<{ id: string }>(
       'tasks',
       'POST',
@@ -155,10 +151,7 @@ try {
         operation,
         versionId,
         revisionRequest:
-          operation === 'revise'
-            ? 'Keep the locked bullet unchanged and refine any other wording for clarity.'
-            : '',
-        lockedBulletIds: locks,
+          operation === 'revise' ? 'Refine the wording of the first project for clarity.' : '',
       },
       a.token,
       201,
@@ -166,7 +159,7 @@ try {
     const { task } = await api<{ task: { id: string; input: unknown; leaseToken: string } }>(
       'device/claim',
       'POST',
-      {},
+      { docV2: true },
       token,
     );
     assert.equal(task.id, taskId);
@@ -185,16 +178,31 @@ try {
     };
     const timer = setInterval(() => void beat().catch(() => controller.abort()), 20000);
     try {
-      const output =
+      const onStage = async (s: string) => {
+        stage = s;
+        await beat();
+      };
+      const output: ResumeDoc =
         operation === 'render'
-          ? snapshot.priorOutput!
+          ? (snapshot.priorOutput as ResumeDoc)
           : fixtureOutput
             ? syntheticOutput
-            : await adapter.run(snapshot, workspace, controller.signal, async (s) => {
-                stage = s;
-                await beat();
-              });
-      assert.deepEqual(validateEvidence(snapshot, output), []);
+            : (
+                await writeResume(
+                  snapshot,
+                  await openSession(
+                    settings,
+                    workspace,
+                    WRITER_RULES,
+                    writerSchema,
+                    controller.signal,
+                  ),
+                  (doc) =>
+                    compileResume(snapshot.profile, doc, workspace, controller.signal, onStage),
+                  onStage,
+                )
+              ).doc;
+      assert.deepEqual(validateDoc(snapshot, output), []);
       const rendered = await compileResume(
         snapshot.profile,
         output,
@@ -225,7 +233,8 @@ try {
         token,
       );
       assert.equal(done.versionId, duplicate.versionId);
-      lastOutput = agentOutputSchema.parse(output);
+      lastOutput = output;
+      versionOutputSchema.parse(output);
       await writeFile(join(workspace, `${operation}.json`), JSON.stringify(output, null, 2));
       return done.versionId;
     } finally {
@@ -235,12 +244,12 @@ try {
   }
   const first = await execute('tailor');
   console.log(
-    `Live HTTP claim, ${fixtureOutput ? 'fixture output (no AI)' : 'Codex'}, PDF upload, and idempotent completion passed.`,
+    `Live HTTP claim, ${fixtureOutput ? 'fixture output (no AI)' : `live ${settings.provider}`}, PDF upload, and idempotent completion passed.`,
   );
   const second = await execute('revise', first);
   assert.notEqual(first, second);
   console.log(
-    `Revision with locked content passed (${fixtureOutput ? 'fixture output, no AI' : 'live Codex'}).`,
+    `Revision passed (${fixtureOutput ? 'fixture output, no AI' : `live ${settings.provider}`}).`,
   );
   const state = await api<WorkspaceData>('workspace', 'GET', undefined, a.token);
   assert.equal(state.versions.length, 2);
@@ -297,8 +306,9 @@ try {
     await smokeBrowser(link.data.properties.action_link, workspace);
   } else {
     const edited = structuredClone(lastOutput!);
-    const bullet = edited.resume.sections[0].entries[0].bullets[0];
-    bullet.text = bullet.text.endsWith('.') ? bullet.text.slice(0, -1) + ';' : bullet.text + '.';
+    const entry = edited.sections.find((s) => s.kind === 'entries')!.entries[0];
+    const text = entry.bullets[0];
+    entry.bullets[0] = text.endsWith('.') ? text.slice(0, -1) + ';' : text + '.';
     const manual = await api<{ id: string }>(
       'versions',
       'POST',

@@ -1,6 +1,6 @@
-import type { AgentOutput, Profile } from '@resumeforge/contracts';
-import { renderJakeResume } from './jake';
-export { renderJakeResume } from './jake';
+import type { Profile, VersionOutput } from '@resumeforge/contracts';
+import { renderJakeDoc, renderJakeResume } from './jake';
+export { renderDocBullet, renderJakeDoc, renderJakeResume } from './jake';
 export type ResumeTemplateId = 'compatible-v1' | 'jake-v1';
 // The owner explicitly selected the supplied Jake source as the production template.
 export const DEFAULT_RESUME_TEMPLATE: ResumeTemplateId = 'jake-v1';
@@ -38,9 +38,10 @@ export function safeFilename(name: string, company: string, role: string) {
  * layout remains available only through an explicit legacy template identifier. */
 export function renderLatex(
   profile: Profile,
-  output: AgentOutput,
+  output: VersionOutput,
   template: ResumeTemplateId = DEFAULT_RESUME_TEMPLATE,
 ): string {
+  if (output.schemaVersion === 2) return renderJakeDoc(profile, output);
   if (template === 'jake-v1') return renderJakeResume(profile, output);
   const e = escapeLatex;
   const records = new Map(

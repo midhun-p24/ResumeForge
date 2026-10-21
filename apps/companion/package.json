@@ -7,9 +7,10 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.137.0",
+    "@napi-rs/keyring": "^1.2.0",
     "@openai/codex-sdk": "0.163.0",
     "@resumeforge/contracts": "*",
-    "@resumeforge/resume": "*",
-    "@napi-rs/keyring": "^1.2.0"
+    "@resumeforge/resume": "*"
   }
 }

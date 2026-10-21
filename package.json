@@ -20,7 +20,7 @@
     "lint": "eslint apps packages tests scripts",
     "test": "vitest run",
     "check": "npm run lint && npm run typecheck && npm test && npm run build",
-    "smoke:codex": "tsx scripts/smoke-codex.ts",
+    "smoke:writer": "tsx scripts/smoke-writer.ts",
     "test:database": "tsx scripts/test-database.ts",
     "test:ui": "playwright test",
     "privacy:check": "tsx scripts/check-privacy.ts",

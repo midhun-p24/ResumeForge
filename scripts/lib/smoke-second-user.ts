@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes, createHash } from 'node:crypto';
 import type { TaskInput, WorkspaceData } from '@resumeforge/contracts';
-import { fixture } from '../../tests/fixtures';
+import { docFixture } from '../../tests/fixtures';
 import { compileResume } from '../../apps/companion/src/render';
 type Api = <T = Record<string, unknown>>(
   route: string,
@@ -22,9 +22,9 @@ export async function smokeSecondUser(
   firstDeviceId: string,
   firstTaskId: string,
 ) {
-  const { input, output } = fixture();
+  const { input, doc: output } = docFixture();
   input.profile.contact.name = 'Jordan Example';
-  input.profile.records[0].title = 'Isolated Queue Project';
+  input.profile.masterText += '\nIsolated Queue Project (2025): second synthetic account only.';
   input.job.company = 'Other Example Systems';
   await api('profile', 'PUT', input.profile, second);
   const job = await api<{ id: string }>('jobs', 'POST', input.job, second, 201);
@@ -73,9 +73,8 @@ export async function smokeSecondUser(
         jobId: job.id,
         operation,
         versionId: prior,
-        revisionRequest: operation === 'revise' ? 'Preserve the locked evidence.' : '',
-        lockedBulletIds:
-          operation === 'revise' ? [output.resume.sections[0].entries[0].bullets[0].id] : [],
+        revisionRequest: operation === 'revise' ? 'Tighten the project wording.' : '',
+        lockedBulletIds: [],
         lockedSectionIds: [],
         excludedSourceIds: [],
       },
@@ -87,7 +86,7 @@ export async function smokeSecondUser(
     const claim = await api<{ task: { id: string; input: TaskInput; leaseToken: string } }>(
       'device/claim',
       'POST',
-      {},
+      { docV2: true },
       token,
     );
     assert.equal(claim.task.id, task.id);

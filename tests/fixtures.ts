@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { emptyProfile } from '@resumeforge/contracts';
-import type { AgentOutput, TaskInput } from '@resumeforge/contracts';
+import type { AgentOutput, ResumeDoc, TaskInput } from '@resumeforge/contracts';
 /** Entirely synthetic; never replace with a real person's profile. */
 export function fixture(): { input: TaskInput; output: AgentOutput } {
   const source = randomUUID(),
@@ -42,6 +42,7 @@ export function fixture(): { input: TaskInput; output: AgentOutput } {
     schemaVersion: 1,
     taskId: randomUUID(),
     operation: 'tailor',
+    format: 'records_v1',
     profile,
     job: {
       company: 'Example Systems',
@@ -105,4 +106,80 @@ export function fixture(): { input: TaskInput; output: AgentOutput } {
     warnings: ['Synthetic fixture; review before use.'],
   };
   return { input, output };
+}
+
+/** A synthetic source-based (v2) task and document. Never replace with a real profile. */
+export function docFixture(): { input: TaskInput; doc: ResumeDoc } {
+  const { input } = fixture();
+  input.format = 'doc_v2';
+  input.profile.masterText = [
+    'Alex Example, Example City',
+    'Example University, B.S. Computer Science, Aug. 2022 - May 2026, GPA 3.8',
+    'Software Intern, Example Systems, June 2025 - Aug. 2025',
+    '- Built a TypeScript task queue that cut duplicate processing by 25%.',
+    '- Wrote PostgreSQL migrations reviewed in code reviews.',
+    'Queue Visualizer (2025): React and Node.js dashboard for 40 queues.',
+  ].join('\n');
+  const doc: ResumeDoc = {
+    schemaVersion: 2,
+    sections: [
+      {
+        title: 'Education',
+        kind: 'education',
+        entries: [
+          {
+            heading: 'Example University',
+            subheading: 'B.S. in Computer Science; GPA: 3.8',
+            date: 'Aug. 2022 -- May 2026',
+            location: 'Example City',
+            stack: '',
+            bullets: [],
+          },
+        ],
+        skills: [],
+      },
+      {
+        title: 'Technical Skills',
+        kind: 'skills',
+        entries: [],
+        skills: [{ category: 'Languages', items: 'TypeScript, SQL' }],
+      },
+      {
+        title: 'Experience',
+        kind: 'entries',
+        entries: [
+          {
+            heading: 'Software Intern',
+            subheading: 'Example Systems',
+            date: 'June 2025 -- Aug. 2025',
+            location: 'Example City',
+            stack: '',
+            bullets: ['Cut duplicate processing by **25%** with a TypeScript task queue.'],
+          },
+        ],
+        skills: [],
+      },
+      {
+        title: 'Projects',
+        kind: 'entries',
+        entries: [
+          {
+            heading: 'Queue Visualizer',
+            subheading: '',
+            date: '2025',
+            location: '',
+            stack: 'React, Node.js',
+            bullets: ['Built a React and Node.js dashboard monitoring **40 queues**.'],
+          },
+        ],
+        skills: [],
+      },
+    ],
+    coverLetter:
+      'Dear Example Systems Hiring Team,\n\nMy task queue cut duplicate processing by 25%.\n\nSincerely,\nAlex Example',
+    keywords: [{ keyword: 'TypeScript', covered: true, where: 'Experience' }],
+    gaps: [],
+    notes: [],
+  };
+  return { input, doc };
 }

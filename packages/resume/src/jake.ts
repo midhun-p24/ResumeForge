@@ -1,4 +1,4 @@
-import type { AgentOutput, Profile, SourceRecord } from '@resumeforge/contracts';
+import type { AgentOutput, Profile, ResumeDoc, SourceRecord } from '@resumeforge/contracts';
 import { escapeLatex } from './index';
 import { JAKE_TEMPLATE_LICENSE, JAKE_TEMPLATE_PREAMBLE } from './jake-template';
 
@@ -47,12 +47,9 @@ export function renderEmphasizedBullet(bullet: Bullet, records: SourceRecord[]):
 }
 
 /** Fixed supplied Jake layout. The agent selects structured records, never TeX commands. */
-export function renderJakeResume(profile: Profile, output: AgentOutput): string {
+function contactLine(profile: Profile): string {
   const e = escapeLatex;
-  const records = new Map(
-    profile.records.filter((r) => r.verification === 'approved').map((r) => [r.id, r]),
-  );
-  const contact = [
+  return [
     e(profile.contact.location),
     e(profile.contact.phone),
     profile.contact.email
@@ -67,6 +64,13 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
   ]
     .filter(Boolean)
     .join(' $|$ ');
+}
+
+export function renderJakeResume(profile: Profile, output: AgentOutput): string {
+  const e = escapeLatex;
+  const records = new Map(
+    profile.records.filter((r) => r.verification === 'approved').map((r) => [r.id, r]),
+  );
   const sections = output.resume.sections.map((section) => {
     if (
       section.entries.length &&
@@ -143,6 +147,49 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
     });
     return `\\section{${e(section.title)}}\n\\resumeSubHeadingListStart\n${entries.join('\n')}\n\\resumeSubHeadingListEnd`;
   });
+  return jakeDocument(profile, sections);
+}
+
+/** Escape a v2 bullet, turning balanced **double-asterisk** spans into bold. */
+export function renderDocBullet(text: string): string {
+  const parts = text.split('**');
+  // An unbalanced marker is shown literally rather than guessing which span was meant.
+  if (parts.length % 2 === 0) return escapeLatex(text);
+  return parts
+    .map((part, i) => (i % 2 ? `\\textbf{${escapeLatex(part)}}` : escapeLatex(part)))
+    .join('');
+}
+
+/** Version 2 documents: the writer chose every heading, date, location and stack. */
+export function renderJakeDoc(profile: Profile, doc: ResumeDoc): string {
+  const e = escapeLatex;
+  const bulletList = (bullets: string[]) =>
+    bullets.length
+      ? '\n\\resumeItemListStart\n' +
+        bullets.map((b) => `\\resumeItem{${renderDocBullet(b)}}`).join('\n') +
+        '\n\\resumeItemListEnd'
+      : '';
+  const sections = doc.sections.map((section) => {
+    if (section.kind === 'skills') {
+      const lines = section.skills.map((s) => `\\textbf{${e(s.category)}}{: ${e(s.items)}}`);
+      return `\\section{${e(section.title)}}\n\\begin{itemize}[leftmargin=0.15in, label={}]\n\\small{\\item{\n${lines.join(' \\\\\n')}\n}}\n\\end{itemize}`;
+    }
+    const entries = section.entries.map((entry) => {
+      if (section.kind === 'education')
+        return `\\resumeSubheading{${e(entry.heading)}}{${e(entry.location)}}{${e(entry.subheading)}}{${e(entry.date)}}${bulletList(entry.bullets)}`;
+      if (entry.stack || !entry.subheading) {
+        const stack = entry.stack ? ` $|$ \\emph{${e(entry.stack)}}` : '';
+        return `\\resumeProjectHeading{\\textbf{${e(entry.heading)}}${stack}}{${e(entry.date)}}${bulletList(entry.bullets)}`;
+      }
+      return `\\resumeSubheading{${e(entry.heading)}}{${e(entry.date)}}{${e(entry.subheading)}}{${e(entry.location)}}${bulletList(entry.bullets)}`;
+    });
+    return `\\section{${e(section.title)}}\n\\resumeSubHeadingListStart\n${entries.join('\n')}\n\\resumeSubHeadingListEnd`;
+  });
+  return jakeDocument(profile, sections);
+}
+
+function jakeDocument(profile: Profile, sections: string[]): string {
+  const e = escapeLatex;
   const notices = JAKE_TEMPLATE_LICENSE.trimEnd()
     .split('\n')
     .map((line) => `% ${line}`)
@@ -165,7 +212,7 @@ export function renderJakeResume(profile: Profile, output: AgentOutput): string 
     notices +
     '\n% ResumeForge controlled body; synthetic review or user-approved facts only.\n' +
     '\\begin{document}\n\\begin{center}\n' +
-    `\\textbf{\\Huge \\scshape ${e(profile.contact.name)}} \\\\ \\vspace{1pt}\n\\footnotesize ${contact}\n` +
+    `\\textbf{\\Huge \\scshape ${e(profile.contact.name)}} \\\\ \\vspace{1pt}\n\\footnotesize ${contactLine(profile)}\n` +
     `\\end{center}\n\n${sections.join('\n\n')}\n\\end{document}\n`
   );
 }

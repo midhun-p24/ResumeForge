@@ -16,6 +16,7 @@ const dependencies = [
   '@openai/codex',
   '@openai/codex-sdk',
   '@napi-rs/keyring',
+  '@anthropic-ai/sdk',
   'pdf-lib',
   'pdfjs-dist',
   'zod',

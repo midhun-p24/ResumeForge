@@ -1,5 +1,29 @@
 # Companion installation and connection
 
+## 0.5.0: source-based writer, Codex or Claude
+
+Tailoring no longer reads approved records. The writer receives the job posting plus the raw
+tailoring sources from Master Profile (master resume, optional portfolio text, optional reference
+resume) and authors a version 2 document: sections, headings, dates, locations, project stacks,
+bullets with `**bold**` spans, skills rows, a cover letter and a keyword check. The companion
+renders it into the Jake template, compiles with Tectonic, measures the page (lines overflowing,
+percent filled, bullets whose last line holds one to three words, skills rows that wrap) and sends
+that feedback back in the same conversation. At most five model calls; the best one-page result
+wins, and trimming the lowest bullets is only a last resort.
+
+Truth guard: every number in the resume and cover letter must appear in the sources or the posting,
+or the draft is sent back for repair and is never uploaded. Headings whose wording is not found in
+the sources are listed in the writer notes for review. Manual edits are your own words and are only
+structure-checked.
+
+Writers: `resumeforge login` (Codex, your ChatGPT sign-in) or `resumeforge login --claude` (your
+Anthropic API key, stored in the OS vault, never sent to ResumeForge, never passed to Tectonic or
+Codex). Claude defaults to `claude-opus-5-5` with adaptive thinking, high effort and server-side
+refusal fallback; usage is billed to your Anthropic account. `resumeforge provider claude|codex
+[--model name]` switches writers and models; `doctor` shows the active writer. Older companions
+claim no version 2 task; the server fails it with `COMPANION_UPGRADE_REQUIRED`. Old record-based
+versions stay viewable and re-renderable; revising one starts a fresh source-based draft.
+
 ## 0.4.0: paste-a-job prompt rules and cover letters
 
 Tailoring follows the owner's portable paste-a-job prompt (one filled page, truth first,
@@ -79,7 +103,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.4.0.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.0.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

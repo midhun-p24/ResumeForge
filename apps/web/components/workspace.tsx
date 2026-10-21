@@ -39,8 +39,9 @@ import {
   profileSchema,
 } from '@resumeforge/contracts';
 import type {
-  AgentOutput,
   ApplicationView,
+  ResumeDoc,
+  VersionOutput,
   Job,
   Profile,
   SourceRecord,
@@ -82,16 +83,24 @@ const online = (d: WorkspaceData['devices'][number]) =>
 const date = (s: string) =>
   new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const failureHelp: Record<string, string> = {
-  AUTH_REQUIRED: 'Run codex login on your computer, then retry.',
-  USAGE_LIMIT: 'Codex usage is currently limited. Wait for access to reset, then retry.',
-  MODEL_ACCESS: 'Your local Codex model is unavailable. Check your Codex configuration.',
+  AUTH_REQUIRED:
+    'Sign in on your computer: resumeforge login (Codex) or resumeforge login --claude (Claude API key).',
+  USAGE_LIMIT:
+    'Your Codex allowance or Anthropic credit is exhausted. Wait for it to reset or switch with resumeforge provider.',
+  MODEL_ACCESS:
+    'The configured model is unavailable to your account. Run resumeforge provider to choose another.',
   COMPILER_MISSING: 'Install Tectonic locally and run the companion doctor command.',
   COMPILE_FAILED: 'PDF compilation failed. Check Tectonic dependencies with the doctor command.',
-  INVALID_OUTPUT: 'The result failed schema or evidence checks after one repair attempt.',
+  INVALID_OUTPUT:
+    'The draft kept failing checks (for example a number not found in your sources). Retry or add the fact to your master resume.',
   LEASE_EXHAUSTED: 'The companion lost its lease three times. Reconnect and start a new task.',
   TIMEOUT: 'Task exceeded its time limit. Request a shorter revision.',
-  AGENT_FAILED: 'Codex failed. Run the companion doctor command to check access.',
-  SCHEMA_REJECTED: 'Codex rejected the companion output schema. Update your companion, then retry.',
+  AGENT_FAILED: 'The AI request failed. Run resumeforge doctor to check access.',
+  SCHEMA_REJECTED: 'The model rejected the output schema. Update your companion, then retry.',
+  MODEL_REFUSED: 'The model declined this request. Review the posting text and retry.',
+  COMPANION_UPGRADE_REQUIRED:
+    'Your companion is out of date. Install the latest version from the Companion page, then tailor again.',
+  UNSUPPORTED_TASK: 'This task was created for an older companion. Start a fresh tailoring.',
 };
 
 export default function Workspace() {
@@ -739,22 +748,39 @@ function ProfileEditor({
             </Field>
           </section>
           <section className="panel form-panel">
-            <h2>Pasted master resume</h2>
+            <h2>Tailoring sources</h2>
             <p className="muted">
-              A private reference. Pasted text is unverified until you add and approve structured
-              records below.
+              Every resume and cover letter is written directly from these texts and the job
+              posting. Only facts and numbers found here can appear, so include everything you might
+              want used.
             </p>
-            <Field label="Master resume text">
+            <Field label="Master resume (required)">
               <textarea
-                rows={7}
+                rows={14}
                 value={p.masterText}
                 onChange={(e) => setP({ ...p, masterText: e.target.value })}
-                placeholder="Paste your complete background here…"
+                placeholder="Paste your complete master resume: every role, project, metric and skill…"
+              />
+            </Field>
+            <Field label="Portfolio site text (optional)">
+              <textarea
+                rows={6}
+                value={p.portfolioText ?? ''}
+                onChange={(e) => setP({ ...p, portfolioText: e.target.value })}
+                placeholder="Paste the text of your portfolio site: project descriptions, publications…"
+              />
+            </Field>
+            <Field label="Reference resume (optional)">
+              <textarea
+                rows={8}
+                value={p.referenceResume ?? ''}
+                onChange={(e) => setP({ ...p, referenceResume: e.target.value })}
+                placeholder="Paste a past resume that scored well, as a guide for selection and style…"
               />
             </Field>
             <p className="muted">
-              Paste plain text to extract draft records with your own Codex companion. PDF and DOCX
-              file uploads are not available.
+              Optional: extract structured records from the master resume with your own Codex
+              companion. Tailoring no longer requires approved records.
             </p>
             <ProfileImporter
               rawText={p.masterText}
@@ -1205,11 +1231,16 @@ function ResumeWorkspace({
     [locks, setLocks] = useState<string[]>([]),
     [sections, setSections] = useState<string[]>([]),
     [excluded, setExcluded] = useState<string[]>([]),
-    [draft, setDraft] = useState<AgentOutput | null>(null),
+    [draft, setDraft] = useState<VersionOutput | null>(null),
     [pdf, setPdf] = useState(''),
     [compare, setCompare] = useState(''),
     [tab, setTab] = useState<'Resume' | 'Cover letter' | 'Fit & evidence' | 'Versions'>('Resume');
   const version = versions.find((v) => v.id === versionId) ?? versions[0];
+  // Record-based (v1) versions keep their original views; v2 documents are edited directly.
+  const legacy = version?.output.schemaVersion === 1 ? version.output : null;
+  const doc = version?.output.schemaVersion === 2 ? version.output : null;
+  const legacyDraft = draft?.schemaVersion === 1 ? draft : null;
+  const docDraft = draft?.schemaVersion === 2 ? draft : null;
   const task = data.tasks.find((t) => t.job_id === job?.id);
   const outputKey = JSON.stringify(version?.output);
   useEffect(() => {
@@ -1293,7 +1324,7 @@ function ResumeWorkspace({
               key={t}
               onClick={() => setTab(t)}
             >
-              {t}
+              {t === 'Fit & evidence' && doc ? 'Keyword check' : t}
               {t === 'Versions' && <span>{versions.length}</span>}
             </button>
           ))}
@@ -1374,11 +1405,13 @@ function ResumeWorkspace({
                 </a>
               )}
             </details>
-            {version ? (
+            {doc ? (
+              <KeywordCheck doc={doc} />
+            ) : legacy ? (
               <>
                 <div className="score-row">
                   <span className="score">
-                    {fitScore(version.output.analysis) ?? '—'}
+                    {fitScore(legacy.analysis) ?? '—'}
                     <small>/100</small>
                   </span>
                   <div>
@@ -1388,12 +1421,12 @@ function ResumeWorkspace({
                     </p>
                   </div>
                 </div>
-                <p>{version.output.analysis.summary}</p>
+                <p>{legacy.analysis.summary}</p>
                 <p className="muted">
                   Rubric: required skills 45%, responsibilities 30%, domain relevance 15%, preferred
                   qualifications 10%. Missing categories are reweighted.
                 </p>
-                {version.output.analysis.requirements.map((r) => (
+                {legacy.analysis.requirements.map((r) => (
                   <article className="requirement" key={r.id}>
                     <div>
                       <strong>{r.text}</strong>
@@ -1417,21 +1450,42 @@ function ResumeWorkspace({
               <div className="empty-state">
                 <Search size={25} />
                 <h3>Analysis begins with your agent</h3>
-                <p>Start tailoring to receive evidence matches and an explained fit assessment.</p>
+                <p>Start tailoring to receive a keyword check against this posting.</p>
               </div>
             )}
           </section>
-          {version && (
+          {doc && (
             <aside>
               {[
-                { title: 'Gaps & weak qualifications', items: version.output.analysis.gaps },
-                { title: 'Unknowns', items: version.output.analysis.unknowns },
+                { title: 'Gaps · not in your sources', items: doc.gaps },
+                { title: 'Notes from the writer', items: doc.notes },
+              ].map((s) => (
+                <section className="panel form-panel" key={s.title}>
+                  <h2>{s.title}</h2>
+                  {s.items.length ? (
+                    <ul className="plain-list">
+                      {s.items.map((x, i) => (
+                        <li key={i}>{x}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="muted">None reported. Review the original posting yourself.</p>
+                  )}
+                </section>
+              ))}
+            </aside>
+          )}
+          {legacy && (
+            <aside>
+              {[
+                { title: 'Gaps & weak qualifications', items: legacy.analysis.gaps },
+                { title: 'Unknowns', items: legacy.analysis.unknowns },
                 {
                   title: 'Eligibility · review separately',
-                  items: version.output.analysis.eligibility,
+                  items: legacy.analysis.eligibility,
                 },
-                { title: 'Tailoring plan', items: version.output.analysis.tailoringPlan },
-                { title: 'Review warnings', items: version.output.warnings },
+                { title: 'Tailoring plan', items: legacy.analysis.tailoringPlan },
+                { title: 'Review warnings', items: legacy.warnings },
               ].map((s) => (
                 <section className="panel form-panel" key={s.title}>
                   <h2>{s.title}</h2>
@@ -1448,8 +1502,8 @@ function ResumeWorkspace({
               ))}
               <section className="panel form-panel">
                 <h2>Education & experience</h2>
-                <p>{version.output.analysis.education}</p>
-                <p>{version.output.analysis.experience}</p>
+                <p>{legacy.analysis.education}</p>
+                <p>{legacy.analysis.experience}</p>
               </section>
             </aside>
           )}
@@ -1623,13 +1677,28 @@ function ResumeWorkspace({
                   </select>
                 )}
               </div>
-              {draft && version ? (
+              {docDraft && version ? (
+                <DocEditor
+                  doc={docDraft}
+                  onChange={setDraft}
+                  saveDisabled={unchanged || busy}
+                  onSave={() =>
+                    void run(async () => {
+                      await api('versions', 'POST', {
+                        parentId: version.id,
+                        output: docDraft,
+                        label: 'Manual edit',
+                      });
+                    }, 'New version saved. Render it with the companion for an updated PDF.')
+                  }
+                />
+              ) : legacyDraft && version ? (
                 <>
                   <div className="notice subtle">
                     <ShieldCheck size={17} />
                     Sources support review; they do not guarantee factual accuracy.
                   </div>
-                  {draft.resume.sections.map((s) => (
+                  {legacyDraft.resume.sections.map((s) => (
                     <div className="resume-section" key={s.id}>
                       <div className="section-heading">
                         <h3>{s.title}</h3>
@@ -1657,9 +1726,9 @@ function ResumeWorkspace({
                                 maxLength={300}
                                 onChange={(e) =>
                                   setDraft({
-                                    ...draft,
+                                    ...legacyDraft,
                                     resume: {
-                                      sections: draft.resume.sections.map((x) => ({
+                                      sections: legacyDraft.resume.sections.map((x) => ({
                                         ...x,
                                         entries: x.entries.map((en) => ({
                                           ...en,
@@ -1731,12 +1800,13 @@ function ResumeWorkspace({
               )}
             </div>
             <section className="panel form-panel">
-              <h2>{version ? 'Refine this version' : 'Select your evidence'}</h2>
+              <h2>{version ? 'Refine this version' : 'Tailor from your sources'}</h2>
               <p className="muted">
-                Include or exclude approved records. Locked content must stay unchanged during
-                revision.
+                {legacy
+                  ? 'This version was built from approved records. Revising it starts a fresh draft from your current tailoring sources.'
+                  : 'The writer reads your posting and tailoring sources, compiles the PDF, and revises until the page is full and clean.'}
               </p>
-              <div className="evidence-options">
+              <div className="evidence-options" hidden={!legacy}>
                 {currentProfile.records
                   .filter((r) => r.verification === 'approved')
                   .map((r) => (
@@ -1759,7 +1829,7 @@ function ResumeWorkspace({
                 <>
                   <Field
                     label="Revision request"
-                    hint="To regenerate selected content, name the section or bullet. Lock everything you want to retain."
+                    hint="Describe what to change, for example lead with research, or expand the strongest project. The whole page is rewritten and recompiled."
                   >
                     <textarea
                       rows={4}
@@ -1920,10 +1990,150 @@ function ResumeWorkspace({
     </>
   );
 }
+/** Simplify-style keyword check for v2 documents. */
+function KeywordCheck({ doc }: { doc: ResumeDoc }) {
+  const covered = doc.keywords.filter((k) => k.covered).length;
+  return (
+    <>
+      <div className="score-row">
+        <span className="score">
+          {doc.keywords.length ? `${covered}/${doc.keywords.length}` : '—'}
+        </span>
+        <div>
+          <h3>Posting keywords covered</h3>
+          <p>
+            The writer's own check of key skills in the posting. Use it as a guide, not as an ATS
+            score or hiring probability.
+          </p>
+        </div>
+      </div>
+      {doc.keywords.map((k) => (
+        <article className="requirement" key={k.keyword}>
+          <div>
+            <strong>{k.keyword}</strong>
+            <span className={`badge ${k.covered ? 'green' : ''}`}>
+              {k.covered ? 'covered' : 'missing'}
+            </span>
+          </div>
+          {k.where && <p>{k.where}</p>}
+        </article>
+      ))}
+    </>
+  );
+}
+
+/** Edit a v2 document's wording in place; saving creates a new version. */
+function DocEditor({
+  doc,
+  onChange,
+  onSave,
+  saveDisabled,
+}: {
+  doc: ResumeDoc;
+  onChange: (doc: ResumeDoc) => void;
+  onSave: () => void;
+  saveDisabled: boolean;
+}) {
+  const update = (si: number, change: (s: ResumeDoc['sections'][number]) => void) => {
+    const next = structuredClone(doc);
+    change(next.sections[si]);
+    onChange(next);
+  };
+  return (
+    <>
+      <div className="notice subtle">
+        <ShieldCheck size={17} />
+        Written only from your sources. **Double asterisks** mark bold text. Check every fact.
+      </div>
+      {doc.sections.map((s, si) => (
+        <div className="resume-section" key={`${si}-${s.title}`}>
+          <div className="section-heading">
+            <h3>{s.title}</h3>
+          </div>
+          {s.skills.map((k, ki) => (
+            <Field label={k.category} key={`${ki}-${k.category}`}>
+              <input
+                value={k.items}
+                maxLength={300}
+                onChange={(e) =>
+                  update(si, (section) => {
+                    section.skills[ki].items = e.target.value;
+                  })
+                }
+              />
+            </Field>
+          ))}
+          {s.entries.map((entry, ei) => (
+            <div className="resume-entry" key={`${ei}-${entry.heading}`}>
+              <strong>{entry.heading}</strong>
+              <small className="source-id">
+                {[entry.subheading, entry.stack, entry.location, entry.date]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </small>
+              {entry.bullets.map((bullet, bi) => (
+                <div className="bullet-editor" key={bi}>
+                  <textarea
+                    aria-label="Resume bullet"
+                    rows={3}
+                    value={bullet}
+                    maxLength={400}
+                    onChange={(e) =>
+                      update(si, (section) => {
+                        section.entries[ei].bullets[bi] = e.target.value;
+                      })
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      ))}
+      <button className="button secondary" disabled={saveDisabled} onClick={onSave}>
+        Save as new version
+        <Check size={15} />
+      </button>
+      {!saveDisabled && (
+        <p className="muted">
+          Save edits before requesting a revision or rendering. The existing PDF belongs to the
+          saved version.
+        </p>
+      )}
+    </>
+  );
+}
+
 function ResumeText({ version }: { version: VersionView }) {
+  const output = version.output;
+  if (output.schemaVersion === 2)
+    return (
+      <div className="pre-wrap compare-text">
+        {output.sections.map((s, si) => (
+          <section key={si}>
+            <h3>{s.title}</h3>
+            {s.skills.map((k) => (
+              <p key={k.category}>
+                <strong>{k.category}:</strong> {k.items}
+              </p>
+            ))}
+            {s.entries.map((e, ei) => (
+              <div key={ei}>
+                <strong>{e.heading}</strong>
+                <ul>
+                  {e.bullets.map((b, bi) => (
+                    <li key={bi}>{b.replaceAll('**', '')}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
+    );
   return (
     <div className="pre-wrap compare-text">
-      {version.output.resume.sections.map((s) => (
+      {output.resume.sections.map((s) => (
         <section key={s.id}>
           <h3>{s.title}</h3>
           {s.entries.map((e) => (

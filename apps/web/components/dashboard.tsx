@@ -26,7 +26,7 @@ export function Dashboard({
 }) {
   const latest = data.versions[0];
   const latestJob = latest && data.jobs.find((job) => job.id === latest.job_id);
-  const ready = !!data.profile.contact.name && approved > 0;
+  const ready = !!data.profile.contact.name && data.profile.masterText.trim().length >= 40;
   const active = data.tasks.filter((task) => ['queued', 'running'].includes(task.state)).length;
   return (
     <section className="forge-preview live-overview">
@@ -219,11 +219,13 @@ export function Dashboard({
             <div className="live-no-resume">
               <p>No resume versions yet.</p>
               <button className="fp-link" onClick={() => go(ready ? 'New Job' : 'Master Profile')}>
-                {ready ? 'Start tailoring' : 'Build your approved profile'} <ArrowRight size={15} />
+                {ready ? 'Start tailoring' : 'Paste your master resume'} <ArrowRight size={15} />
               </button>
             </div>
           )}
-          <p className="fp-small-note">Based on approved evidence. Review before applying.</p>
+          <p className="fp-small-note">
+            Written only from your own sources. Review before applying.
+          </p>
         </section>
       </div>
     </section>

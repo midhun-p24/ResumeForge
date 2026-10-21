@@ -3,7 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { PDFDocument } from 'pdf-lib';
 import { createClient } from '@supabase/supabase-js';
 import {
-  agentOutputSchema,
+  versionOutputSchema,
+  validateDoc,
+  docStructureIssues,
+  DOC_V2_CAPABILITY,
   applicationSchema,
   completionSchema,
   emptyProfile,
@@ -18,7 +21,7 @@ import {
   importOutputSchema,
   validateImport,
 } from '@resumeforge/contracts';
-import type { AgentOutput, TaskInput } from '@resumeforge/contracts';
+import type { TaskInput, VersionOutput } from '@resumeforge/contracts';
 import { renderLatex, safeFilename } from '@resumeforge/resume';
 import {
   ApiError,
@@ -152,16 +155,28 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
       if (path[3] === 'complete') await rate(`complete:${d.id}`, 10, 60);
       if (route === 'device/claim' && method === 'POST') {
         const b = z
-          .object({ profileImport: z.boolean().optional() })
+          .object({ profileImport: z.boolean().optional(), docV2: z.boolean().optional() })
           .parse(await body(request, 2000));
-        return ok({
-          task: checked(
-            await db().rpc('rf_claim_capable', {
+        const task = checked(
+          await db().rpc('rf_claim_capable', {
+            p_device: d.id,
+            p_imports: b.profileImport === true,
+          }),
+        ) as { id: string; input: { format?: string }; leaseToken: string } | null;
+        // Companions before 0.5.0 cannot write source-based documents; fail clearly instead.
+        if (task?.input?.format === 'doc_v2' && b.docV2 !== true) {
+          checked(
+            await db().rpc('rf_fail', {
               p_device: d.id,
-              p_imports: b.profileImport === true,
+              p_task: task.id,
+              p_lease: task.leaseToken,
+              p_code: 'COMPANION_UPGRADE_REQUIRED',
+              p_draft: null,
             }),
-          ),
-        });
+          );
+          return ok({ task: null });
+        }
+        return ok({ task });
       }
       if (route === 'device/disconnect' && method === 'POST') {
         checked(
@@ -180,7 +195,10 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
             stage: z.enum(progressStages),
             agentStatus: z.enum(['authenticated', 'sign_in_required', 'unavailable']),
             companionVersion: z.string().max(20).optional(),
-            capabilities: z.array(z.literal('profile_import_v1')).max(1).optional(),
+            capabilities: z
+              .array(z.enum(['profile_import_v1', DOC_V2_CAPABILITY]))
+              .max(2)
+              .optional(),
           })
           .parse(await body(request, 3000));
         checked(
@@ -271,7 +289,7 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
           }
           if (task.state !== 'running' || Date.parse(task.lease_until) <= Date.now())
             throw new ApiError(409, 'LEASE_LOST', 'Task was cancelled or the lease expired.');
-          ensureEvidence(input, b.output);
+          ensureOutput(input, b.output);
           if (
             b.render.status === 'ready' &&
             (!b.pdf || b.render.pageCount !== 1 || !b.render.textVerified)
@@ -363,8 +381,11 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
                 'COMPILE_FAILED',
                 'TIMEOUT',
                 'CANCELLED',
+                'MODEL_REFUSED',
+                'UNSUPPORTED_TASK',
               ]),
-              draft: agentOutputSchema.nullable(),
+              draft: versionOutputSchema.nullable(),
+              details: z.array(z.string().max(300)).max(8).optional(),
             })
             .parse(await body(request, 1000000));
           return ok({
@@ -374,7 +395,7 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
                 p_task: task.id,
                 p_lease: b.leaseToken,
                 p_code: b.code,
-                p_draft: b.draft,
+                p_draft: b.draft ?? (b.details?.length ? { diagnostics: b.details } : null),
               }),
             ),
           });
@@ -491,26 +512,36 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
       const p = checked(
         await db().from('profiles').select('data').eq('user_id', u.id).maybeSingle(),
       );
-      const profile = profileSchema.parse(prior?.profile ?? p?.data ?? emptyProfile);
-      if (!profile.contact.name || !profile.records.some((r) => r.verification === 'approved'))
+      const priorOutput = prior ? versionOutputSchema.parse(prior.output) : null;
+      // Old record-based versions can still be re-rendered as saved; everything else is written
+      // from the current raw sources. Revising an old version starts a fresh source-based draft.
+      const legacyRender = b.operation === 'render' && priorOutput?.schemaVersion === 1;
+      const freshFromLegacy = !legacyRender && priorOutput?.schemaVersion === 1;
+      const profile = profileSchema.parse(
+        legacyRender ? prior!.profile : (p?.data ?? emptyProfile),
+      );
+      if (!profile.contact.name)
+        throw new ApiError(422, 'PROFILE_REQUIRED', 'Add your name in Master Profile first.');
+      if (!legacyRender && profile.masterText.trim().length < 40)
         throw new ApiError(
           422,
           'PROFILE_REQUIRED',
-          'Add your name and at least one approved profile record.',
+          'Paste your master resume in Master Profile before tailoring.',
         );
       const taskId = randomUUID();
       const input = taskInputSchema.parse({
         schemaVersion: 1,
         taskId,
-        operation: b.operation,
+        operation: freshFromLegacy ? 'tailor' : b.operation,
+        format: legacyRender ? 'records_v1' : 'doc_v2',
         profile,
         job: job.data,
         instructions: profile.preferences.instructions,
-        priorOutput: prior?.output ?? null,
+        priorOutput: freshFromLegacy ? null : priorOutput,
         revisionRequest: b.revisionRequest,
-        lockedBulletIds: b.lockedBulletIds,
-        lockedSectionIds: b.lockedSectionIds,
-        excludedSourceIds: b.excludedSourceIds,
+        lockedBulletIds: legacyRender ? b.lockedBulletIds : [],
+        lockedSectionIds: legacyRender ? b.lockedSectionIds : [],
+        excludedSourceIds: legacyRender ? b.excludedSourceIds : [],
       });
       checked(await db().rpc('rf_enqueue', { p_user: u.id, p_job: b.jobId, p_input: input }));
       return ok({ id: taskId }, 201);
@@ -545,7 +576,7 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
       const b = z
         .object({
           parentId: idSchema,
-          output: agentOutputSchema,
+          output: versionOutputSchema,
           label: z.string().min(1).max(100),
         })
         .parse(await body(request, 1000000));
@@ -555,16 +586,18 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
         schemaVersion: 1,
         taskId: randomUUID(),
         operation: 'revise',
+        format: b.output.schemaVersion === 2 ? 'doc_v2' : 'records_v1',
         profile: parent.profile,
         job: job.data,
         instructions: '',
-        priorOutput: parent.output,
+        priorOutput: parent.output.schemaVersion === b.output.schemaVersion ? parent.output : null,
         revisionRequest: '',
         lockedBulletIds: [],
         lockedSectionIds: [],
         excludedSourceIds: [],
       });
-      ensureEvidence(input, b.output);
+      // Manual edits are the user's own words, so v2 edits get structure checks only.
+      ensureOutput(input, b.output, true);
       const id = checked(
         await db().rpc('rf_save_version', {
           p_user: u.id,
@@ -682,8 +715,16 @@ async function handle(request: Request, { params }: { params: Promise<{ path: st
     );
   }
 }
-function ensureEvidence(input: TaskInput, output: AgentOutput) {
-  const errors = validateEvidence(input, output);
+function ensureOutput(input: TaskInput, output: VersionOutput, manual = false) {
+  const expected = input.format === 'doc_v2' ? 2 : 1;
+  if (output.schemaVersion !== expected)
+    throw new ApiError(422, 'EVIDENCE_INVALID', 'Resume format does not match this task.');
+  const errors =
+    output.schemaVersion === 2
+      ? manual
+        ? docStructureIssues(output)
+        : validateDoc(input, output)
+      : validateEvidence(input, output);
   if (errors.length) throw new ApiError(422, 'EVIDENCE_INVALID', errors.join('; '));
 }
 export { handle as GET, handle as POST, handle as PUT, handle as PATCH, handle as DELETE };

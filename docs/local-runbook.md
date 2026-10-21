@@ -19,7 +19,7 @@
 mobile navigation, and unauthorized access. Install Chromium with `npx playwright install chromium`.
 No live Codex auth is used in CI.
 
-`npm run smoke:codex -- --pdf` uses actual local Codex and Tectonic with synthetic inputs.
+`npm run smoke:writer` runs the configured writer (Codex or Claude) and Tectonic on synthetic inputs; `-- --input <task.json>` uses a private task input instead.
 Ignored outputs go in `private/smoke`. `--warmup` permits initial fixed-template downloads.
 Account usage limits apply. Never replace committed fixtures with real profile facts.
 

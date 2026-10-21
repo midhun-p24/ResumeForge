@@ -2,7 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { readFile, readdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
-import { fixture } from './fixtures';
+import { docFixture, fixture } from './fixtures';
 import { importFixture } from './import-fixtures';
 import { emptyProfile } from '@resumeforge/contracts';
 
@@ -253,6 +253,42 @@ describe('real PostgreSQL policies and transactions', () => {
       pg.query('select rf_save_version($1,$2,$3,$4,$5)', [other, job, v, output, 'Unauthorized']),
     ).rejects.toThrow('NOT_FOUND');
     expect(await scalar('select stage from applications where job_id=$1', [job])).toBe('Tailoring');
+  });
+  it('stores source-based (v2) documents through finish and manual edits', async () => {
+    const { input, doc } = docFixture();
+    const job = await scalar('select rf_save_job($1,$2)', [user, input.job]);
+    await scalar('select rf_enqueue($1,$2,$3)', [user, job, input]);
+    const d = await device();
+    const t = await scalar<{ leaseToken: string; input: { format: string } }>(
+      'select rf_claim($1)',
+      [d],
+    );
+    expect(t.input.format).toBe('doc_v2');
+    const render = { status: 'ready', pageCount: 1, textVerified: true, warnings: [] };
+    const v = await scalar('select rf_finish($1,$2,$3,$4,$5,$6)', [
+      d,
+      input.taskId,
+      t.leaseToken,
+      doc,
+      render,
+      [],
+    ]);
+    const edited = structuredClone(doc);
+    edited.coverLetter = 'Dear Example Systems Hiring Team,';
+    const saved = await scalar('select rf_save_version($1,$2,$3,$4,$5)', [
+      user,
+      job,
+      v,
+      edited,
+      'Cover letter edit',
+    ]);
+    const stored = await scalar<{ schemaVersion: number; coverLetter: string }>(
+      'select output from resume_versions where id=$1',
+      [saved],
+    );
+    expect(stored).toMatchObject({ schemaVersion: 2, coverLetter: edited.coverLetter });
+    // Free the device slot for later tests that pair their own device.
+    await pg.query('update agent_devices set revoked_at=now() where id=$1', [d]);
   });
   it('cancellation fences out stale completions', async () => {
     const { input, output } = await enqueue();

@@ -4,12 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { PDFDocument } from 'pdf-lib';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
-import type { AgentOutput, Profile, RenderStatus } from '@resumeforge/contracts';
+import type { Profile, RenderStatus, VersionOutput } from '@resumeforge/contracts';
 import { renderLatex } from '@resumeforge/resume';
 import type { ResumeTemplateId } from '@resumeforge/resume';
 import { execFile, localEnvironment } from './process';
 import { AgentFailure } from './adapter';
-import { shortWrappedBullets, type TextItem } from './layout';
+import { shortWrappedBullets, textLines, wrappedSkillRows, type TextItem } from './layout';
 
 export const tectonicPath = () => {
   const bundled = fileURLToPath(
@@ -28,16 +28,31 @@ const normalize = (s: string) =>
   s
     .normalize('NFKC')
     .replace(/[\s\u00ad]+/g, '')
-    .replace(/[‐‑–—]/g, '-');
+    .replace(/[‐‑–—]/g, '-')
+    .replace(/-{2,3}/g, '-')
+    .replace(/[‘’`]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\*\*/g, '');
+export type Compiled = {
+  pdf: Buffer;
+  render: RenderStatus;
+  pageFill: number;
+  /** v2 bullets whose last printed line holds only a few words. */
+  shortBullets: string[];
+  /** v2 skills categories whose row wraps onto a second line. */
+  wrappedSkills: string[];
+  /** Printed lines beyond the first page. */
+  overflowLines: number;
+};
 export async function compileResume(
   profile: Profile,
-  output: AgentOutput,
+  output: VersionOutput,
   workspace: string,
   signal: AbortSignal,
   onStage: (s: 'Rendering PDF' | 'Checking layout') => Promise<void>,
   allowDownload = false,
   template?: ResumeTemplateId,
-): Promise<{ pdf: Buffer; render: RenderStatus; pageFill: number; shortBullets: string[] }> {
+): Promise<Compiled> {
   await onStage('Rendering PDF');
   const source = join(workspace, 'Resume.tex');
   await writeFile(source, renderLatex(profile, output, template), { mode: 0o600 });
@@ -85,6 +100,7 @@ export async function compileResume(
   let bottom = Infinity;
   let firstPageHeight = 792;
   const firstPage: TextItem[] = [];
+  const laterPages: TextItem[] = [];
   const loading = getDocument({ data: new Uint8Array(pdf), useSystemFonts: true });
   const parsed = await loading.promise;
   for (let n = 1; n <= parsed.numPages; n++) {
@@ -97,24 +113,33 @@ export async function compileResume(
         extracted += item.str + ' ';
         const x = item.transform[4],
           y = item.transform[5];
+        // Later pages are offset downward so their lines never merge with each other.
         if (n === 1) firstPage.push({ str: item.str, x, y, width: item.width });
+        else laterPages.push({ str: item.str, x, y: y - n * 1000, width: item.width });
         if (x < 25 || y < 24 || x + item.width > page.view[2] - 25 || y > page.view[3] - 24)
           clipped = true;
       }
   }
   await loading.destroy();
+  const v2 = output.schemaVersion === 2 ? output : null;
   const expected = [
     profile.contact.name,
-    ...output.resume.sections.flatMap((s) => [
-      s.title,
-      ...s.entries.flatMap((e) => [
-        profile.records.find((r) => r.id === e.sourceId)!.title,
-        ...(profile.records.find((r) => r.id === e.sourceId)!.kind === 'skill'
-          ? profile.records.find((r) => r.id === e.sourceId)!.technologies
-          : []),
-        ...e.bullets.map((b) => b.text),
-      ]),
-    ]),
+    ...(output.schemaVersion === 2
+      ? output.sections.flatMap((s) => [
+          s.title,
+          ...s.entries.flatMap((e) => [e.heading, ...e.bullets]),
+          ...s.skills.map((k) => k.category),
+        ])
+      : output.resume.sections.flatMap((s) => [
+          s.title,
+          ...s.entries.flatMap((e) => [
+            profile.records.find((r) => r.id === e.sourceId)!.title,
+            ...(profile.records.find((r) => r.id === e.sourceId)!.kind === 'skill'
+              ? profile.records.find((r) => r.id === e.sourceId)!.technologies
+              : []),
+            ...e.bullets.map((b) => b.text),
+          ]),
+        ])),
   ].filter(Boolean);
   let cursor = 0;
   const flat = normalize(extracted);
@@ -141,7 +166,19 @@ export async function compileResume(
     warnings.push(
       `Resume is ${pageCount} pages. Shorten content; font and margins were not reduced.`,
     );
-  const shortBullets = pageCount === 1 ? shortWrappedBullets(firstPage, output) : [];
+  const onePage = v2 && pageCount === 1;
+  const shortBullets = onePage
+    ? shortWrappedBullets(
+        firstPage,
+        v2.sections.flatMap((s) => s.entries.flatMap((e) => e.bullets)),
+      )
+    : [];
+  const wrappedSkills = onePage
+    ? wrappedSkillRows(
+        firstPage,
+        v2.sections.flatMap((s) => s.skills.map((k) => k.category)),
+      )
+    : [];
   if (shortBullets.length)
     warnings.push(
       `${shortBullets.length} bullet(s) wrap with only a few words on the last line. Consider tightening them.`,
@@ -150,6 +187,8 @@ export async function compileResume(
   return {
     pdf,
     shortBullets,
+    wrappedSkills,
+    overflowLines: textLines(laterPages).length,
     pageFill: Number.isFinite(bottom)
       ? Math.min(1, Math.max(0, (firstPageHeight - 28.8 - bottom) / (firstPageHeight - 57.6)))
       : 0,

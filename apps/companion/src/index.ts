@@ -5,17 +5,27 @@ import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
 import {
-  agentOutputSchema,
   idSchema,
   companionTaskSchema,
   COMPANION_VERSION,
+  DOC_V2_CAPABILITY,
   progressStages,
+  versionOutputSchema,
 } from '@resumeforge/contracts';
-import type { AgentOutput } from '@resumeforge/contracts';
+import type { Profile, ResumeDoc, VersionOutput } from '@resumeforge/contracts';
 import { AgentFailure, CodexAdapter, codexCommand } from './adapter';
 import { compileResume, tectonicPath } from './render';
-import { fitResume } from './fit';
 import { execFile, localEnvironment } from './process';
+import {
+  claudeKey,
+  DEFAULT_CLAUDE_MODEL,
+  loadSettings,
+  openSession,
+  providerStatus,
+  saveClaudeKey,
+  saveSettings,
+} from './providers';
+import { writeResume, WRITER_RULES, writerSchema } from './writer';
 import { spawn } from 'node:child_process';
 
 const args = process.argv.slice(2),
@@ -42,6 +52,7 @@ const credentialSchema = z.object({ origin: z.string(), token: z.string(), devic
 type Credential = z.infer<typeof credentialSchema>;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const adapter = new CodexAdapter();
+const CAPABILITIES = ['profile_import_v1', DOC_V2_CAPABILITY];
 let shutdown = false;
 let current: AbortController | null = null;
 process.on('SIGINT', () => {
@@ -123,9 +134,18 @@ async function run() {
   console.log(
     `ResumeForge companion connected to ${origin}. Ctrl+C stops after cancelling local work.`,
   );
+  const settings = await loadSettings();
+  console.log(`Writer: ${await providerStatus(settings)}.`);
   while (!shutdown) {
     try {
-      const agentStatus = await adapter.status();
+      const codexStatus = await adapter.status();
+      // Claude writes resumes with the user's own key; profile import still uses Codex.
+      const agentStatus =
+        settings.provider === 'claude'
+          ? (await claudeKey())
+            ? 'authenticated'
+            : 'sign_in_required'
+          : codexStatus;
       await request(
         'device/heartbeat',
         {
@@ -134,18 +154,22 @@ async function run() {
           stage: 'Analyzing requirements',
           agentStatus,
           companionVersion: COMPANION_VERSION,
-          capabilities: ['profile_import_v1'],
+          capabilities: CAPABILITIES,
         },
         c.token,
       );
       if (agentStatus !== 'authenticated') {
-        console.log('Codex sign-in required. Run codex login. No API-key fallback is used.');
+        console.log(
+          settings.provider === 'claude'
+            ? 'Claude API key missing. Run resumeforge login --claude.'
+            : 'Codex sign-in required. Run resumeforge login, or switch with resumeforge provider claude.',
+        );
         await sleep(20000);
         continue;
       }
       const { task } = await request<{
         task: { id: string; input: unknown; leaseToken: string } | null;
-      }>('device/claim', { profileImport: true }, c.token);
+      }>('device/claim', { profileImport: codexStatus === 'authenticated', docV2: true }, c.token);
       if (task) await processTask(c, task);
       else await sleep(5000);
     } catch (e) {
@@ -172,7 +196,7 @@ async function processTask(
   current = new AbortController();
   let stage: (typeof progressStages)[number] =
     input.operation === 'import_profile' ? 'Parsing master resume' : 'Analyzing requirements';
-  let output: AgentOutput | null = null;
+  let output: VersionOutput | null = null;
   let pending = false;
   const deadline = setTimeout(() => current?.abort(), 10 * 60 * 1000);
   const beat = async () => {
@@ -187,7 +211,7 @@ async function processTask(
           stage,
           agentStatus: 'authenticated',
           companionVersion: COMPANION_VERSION,
-          capabilities: ['profile_import_v1'],
+          capabilities: CAPABILITIES,
         },
         c.token,
       );
@@ -229,19 +253,24 @@ async function processTask(
       );
       return;
     }
-    output =
-      input.operation === 'render'
-        ? agentOutputSchema.parse(input.priorOutput)
-        : await adapter.run(input, workspace, current.signal, onStage);
-    const fittingSignal = current.signal;
-    const fitted = await fitResume(
-      input,
-      output,
-      (candidate) => compileResume(input.profile, candidate, workspace, fittingSignal, onStage),
-      (snapshot) => adapter.run(snapshot, workspace, fittingSignal, onStage),
-    );
-    output = fitted.output;
-    const rendered = fitted.rendered;
+    const signal = current.signal;
+    const compile = (candidate: VersionOutput) =>
+      compileResume(input.profile, candidate, workspace, signal, onStage);
+    let rendered: Awaited<ReturnType<typeof compile>>;
+    if (input.operation === 'render') {
+      // Manual renders compile the saved content exactly as it is.
+      output = versionOutputSchema.parse(input.priorOutput);
+      rendered = await compile(output);
+    } else if (input.format === 'doc_v2') {
+      const settings = await loadSettings();
+      const session = await openSession(settings, workspace, WRITER_RULES, writerSchema, signal);
+      const written = await writeResume(input, session, compile, onStage);
+      output = written.doc;
+      rendered = written.compiled;
+    } else {
+      // Record-based tailoring was replaced by the source-based writer in 0.5.0.
+      throw new AgentFailure('UNSUPPORTED_TASK');
+    }
     await onStage('Checking layout');
     const payload = {
       leaseToken: task.leaseToken,
@@ -281,10 +310,7 @@ async function processTask(
           leaseToken: task.leaseToken,
           code,
           draft: output,
-          details:
-            input.operation === 'import_profile' && e instanceof AgentFailure
-              ? e.diagnostics
-              : undefined,
+          details: e instanceof AgentFailure && e.diagnostics.length ? e.diagnostics : undefined,
         },
         c.token,
       );
@@ -292,8 +318,12 @@ async function processTask(
       /* cancellation/revocation must not re-authorize writes */
     }
     console.log(`Task ${task.id.slice(0, 8)} stopped: ${code}.`);
-    if (input.operation === 'import_profile' && e instanceof AgentFailure)
-      for (const detail of e.diagnostics) console.log(`Import validation: ${detail}`);
+    if (e instanceof AgentFailure)
+      for (const detail of e.diagnostics) console.log(`Detail: ${detail}`);
+    if (code === 'MODEL_ACCESS')
+      console.log(
+        'The configured model is not available to this account. For Codex, set codexModel with resumeforge provider codex --model <name> or edit ~/.codex/config.toml.',
+      );
   } finally {
     clearInterval(timer);
     clearTimeout(deadline);
@@ -302,8 +332,9 @@ async function processTask(
   }
 }
 async function doctor() {
+  const settings = await loadSettings();
   console.log(
-    `ResumeForge companion ${COMPANION_VERSION} diagnostics\nServer: ${origin}\nCodex: ${await adapter.status()}`,
+    `ResumeForge companion ${COMPANION_VERSION} diagnostics\nServer: ${origin}\nWriter: ${settings.provider} (${await providerStatus(settings)})\nCodex (profile import): ${await adapter.status()}`,
   );
   try {
     const r = await execFile(tectonicPath(), ['--version']);
@@ -326,7 +357,7 @@ async function warmup() {
   await mkdir(root, { recursive: true, mode: 0o700 });
   const dir = await mkdtemp(join(root, 'warmup-'));
   try {
-    const profile = {
+    const profile: Profile = {
       contact: {
         name: 'Synthetic compiler check',
         email: 'test@example.invalid',
@@ -336,23 +367,33 @@ async function warmup() {
       },
       records: [],
       masterText: '',
+      portfolioText: '',
+      referenceResume: '',
       preferences: { roles: [], includeGpa: false, instructions: '' },
     };
-    const output: AgentOutput = {
-      schemaVersion: 1,
-      analysis: {
-        requirements: [],
-        summary: '',
-        gaps: [],
-        unknowns: [],
-        eligibility: [],
-        education: '',
-        experience: '',
-        tailoringPlan: [],
-      },
-      selectedSourceIds: [],
-      resume: { sections: [] },
-      warnings: [],
+    const output: ResumeDoc = {
+      schemaVersion: 2,
+      sections: [
+        {
+          title: 'Projects',
+          kind: 'entries',
+          entries: [
+            {
+              heading: 'Compiler check',
+              subheading: '',
+              date: '2026',
+              location: '',
+              stack: 'LaTeX',
+              bullets: ['Warmed the **fixed** template packages and fonts.'],
+            },
+          ],
+          skills: [],
+        },
+      ],
+      coverLetter: '',
+      keywords: [],
+      gaps: [],
+      notes: [],
     };
     await compileResume(
       profile,
@@ -369,8 +410,69 @@ async function warmup() {
     await rm(dir, { recursive: true, force: true });
   }
 }
+/** Read a secret from the terminal without echoing it. */
+async function readSecret(prompt: string): Promise<string> {
+  process.stdout.write(prompt);
+  const stdin = process.stdin;
+  if (!stdin.isTTY) {
+    let data = '';
+    for await (const chunk of stdin) data += chunk;
+    return data.trim();
+  }
+  stdin.setRawMode(true);
+  stdin.resume();
+  stdin.setEncoding('utf8');
+  return new Promise((resolve, reject) => {
+    let value = '';
+    const onData = (chunk: string) => {
+      for (const char of chunk) {
+        if (char === '\r' || char === '\n') {
+          stdin.setRawMode(false);
+          stdin.pause();
+          stdin.off('data', onData);
+          process.stdout.write('\n');
+          return resolve(value.trim());
+        }
+        if (char === '\u0003') {
+          stdin.setRawMode(false);
+          return reject(new Error('Cancelled'));
+        }
+        if (char === '\u007f' || char === '\b') value = value.slice(0, -1);
+        else value += char;
+      }
+    };
+    stdin.on('data', onData);
+  });
+}
+async function providerCommand() {
+  const settings = await loadSettings();
+  const choice = args[1];
+  const modelArg = args.indexOf('--model');
+  const model = modelArg >= 0 ? args[modelArg + 1] : undefined;
+  if (choice === 'claude' || choice === 'codex') {
+    settings.provider = choice;
+    if (model && choice === 'claude') settings.claudeModel = model;
+    if (model !== undefined && choice === 'codex') settings.codexModel = model;
+    await saveSettings(settings);
+  } else if (choice) throw new Error('Use resumeforge provider claude|codex [--model name]');
+  console.log(
+    `Writer: ${settings.provider}. ${await providerStatus(settings)}.\nSwitch with: resumeforge provider claude | resumeforge provider codex (default Claude model ${DEFAULT_CLAUDE_MODEL}).`,
+  );
+}
 try {
-  if (command === 'login') {
+  if (command === 'login' && args.includes('--claude')) {
+    const key = await readSecret('Paste your Anthropic API key (input hidden): ');
+    if (!/^sk-ant-[\w-]{20,}$/.test(key))
+      throw new Error('That does not look like an Anthropic API key.');
+    await saveClaudeKey(key);
+    const settings = await loadSettings();
+    settings.provider = 'claude';
+    await saveSettings(settings);
+    console.log(
+      `Saved to the OS credential vault; it is never sent to ResumeForge. Writer set to Claude (${settings.claudeModel}). Usage is billed to your Anthropic account.`,
+    );
+  } else if (command === 'provider') await providerCommand();
+  else if (command === 'login') {
     const cli = codexCommand(['login']);
     const code = await new Promise<number>((resolve, reject) => {
       const child = spawn(cli.file, cli.args, {
@@ -399,7 +501,7 @@ try {
     console.log('Companion revoked and local credential removed.');
   } else
     console.log(
-      'ResumeForge companion\nCommands: login | doctor | warmup | pair | run | disconnect\nDefault: https://resume-forge.midoon.dev\nUse --url or RESUMEFORGE_URL for a different origin. Device secrets stay in the OS credential vault. Each user uses their own Codex sign-in.',
+      'ResumeForge companion\nCommands: login | login --claude | provider [claude|codex] [--model name] | doctor | warmup | pair | run | disconnect\nDefault: https://resume-forge.midoon.dev\nUse --url or RESUMEFORGE_URL for a different origin. Device secrets and API keys stay in the OS credential vault. Each user uses their own Codex sign-in or Anthropic API key.',
     );
 } catch (e) {
   console.error(

@@ -1,38 +1,36 @@
-# Agent adapter contract
+# Writer provider contract
 
-`AgentAdapter` in `apps/companion/src/adapter.ts` exposes availability and
-`run(input, workspace, signal, onStage)`. Codex is the only implemented/advertised provider.
-Future adapters must enforce the same validation and trust boundaries.
+Resume writing goes through a `WriterSession` (`apps/companion/src/providers.ts`): a multi-turn
+conversation whose `send(text)` returns parsed JSON for the version 2 document schema
+(`generationDocSchema` in `packages/contracts`). Two providers implement it, both inside the
+user's own local companion:
 
-The official TypeScript SDK supports structured schemas, streamed events, abort signals, and
-local CLI sign-in. Complete snapshots and explicit prior output satisfy revisions without
-app-server's additional client/auth/conversation lifecycle. References checked:
+- **Codex** (`codexSession`): a restricted Codex thread (`restrictedThread` in `adapter.ts`) with
+  shell, web search, plugins, apps, MCP, hooks, browser/computer tools, image access, memories and
+  multi-agent work disabled, read-only sandboxing, and no inherited environment. Any tool event
+  aborts the task. An optional `codexModel` setting overrides the user's Codex default model.
+- **Claude** (`claudeSession`): the official Anthropic TypeScript SDK with the user's own API key
+  (OS vault entry `ResumeForge / anthropic-api-key`, or `ANTHROPIC_API_KEY`). No tools are
+  offered. Requests stream to completion with `claude-opus-5-5` by default, adaptive thinking,
+  `effort: "high"`, structured JSON output, automatic prompt caching across turns, and
+  `fallbacks: "default"` for refusals. JSON Schema keywords the structured-output feature does
+  not accept (length and item-count limits) are stripped and re-checked with Zod afterwards.
+  SDK errors map to the existing failure codes (`AUTH_REQUIRED`, `USAGE_LIMIT`, `MODEL_ACCESS`,
+  `TIMEOUT`, `CANCELLED`, `MODEL_REFUSED`).
 
-- [Official SDK](https://learn.chatgpt.com/docs/codex-sdk)
-- [Non-interactive sign-in](https://learn.chatgpt.com/docs/non-interactive-mode)
-- [App server](https://learn.chatgpt.com/docs/app-server)
-- [Configuration](https://learn.chatgpt.com/docs/config-file/config-reference)
+The writer loop (`apps/companion/src/writer.ts`) owns the prompt and the iteration: draft from the
+posting and raw sources, validate (schema, structure, sourced numbers), compile with Tectonic,
+measure, and send concrete layout feedback. At most five model calls per task; the best one-page
+result wins. Profile text import still uses Codex only (`CodexAdapter.extract`).
 
-Protocol v1 supports tailoring, revision, and rendering. Input includes profile/job snapshots,
-preferences, instructions, exclusions, prior output, and locks. Output contains requirements,
-evidence, gaps, eligibility, selected sources, resume sections/bullets, metrics, and warnings.
-The companion produces rendering/artifact status, not the model.
+The model never returns LaTeX. The renderer escapes every field and turns `**bold**` spans into
+`\textbf{}` inside the owner's supplied Jake template, whose preamble and MIT attribution are
+preserved. See [canonical template](canonical-template.md).
 
-The agent never returns executable LaTeX. The default renderer inserts escaped structured
-content into the owner's supplied Jake template. Its complete original preamble and MIT attribution are preserved. Controlled compact spacing
-and a smaller name are applied after that preamble; body type and page margins stay fixed.
-The companion writes `Resume.tex` and compiles `Resume.pdf` locally. See
-[canonical template](canonical-template.md).
+On SDK or CLI upgrades rerun `npm run smoke:writer` for each provider, including the Codex tool
+restrictions. The root `mcp_servers={}` TOML override replaces inherited MCP transports; adding
+disabled entries after clearing the table creates invalid transport-less entries.
 
-One validation repair turn is allowed per generation call. At most two additional fitting
-turns expand sparse pages or shorten overflow, preserving locks and source exclusions.
-The fitter adds one ranked experience and one project per step. Every unlocked included
-experience/project must have exactly three distinct supported bullets. It tries all ranked pairs until overflow,
-then shortens wording before removing whole lower-priority records. Three of each is the target,
-with explicit warnings when evidence or page constraints prevent it. The fullest valid one-page
-candidate is retained; font size and margins are never reduced.
-
-On SDK/CLI upgrades rerun live synthetic checks, including tool restrictions. The root
-`mcp_servers={}` TOML override replaces inherited MCP transports. Adding disabled entries
-after clearing the table creates invalid transport-less entries; live testing caught this
-configuration issue during implementation.
+References: [Codex SDK](https://learn.chatgpt.com/docs/codex-sdk),
+[Codex configuration](https://learn.chatgpt.com/docs/config-file/config-reference),
+[Claude structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs).

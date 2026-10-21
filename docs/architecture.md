@@ -67,6 +67,9 @@ Postings, notes, reference text, and revision requests are untrusted data in an 
 envelope. Codex invocations disable shell execution, web search, plugins, apps, MCP, hooks,
 browser/computer tools, image access, and multi-agent work, use read-only sandboxing, and inherit
 no API/server keys. Unexpected tool events abort processing. Managed settings and future CLI
-changes require upgrade testing. The local companion/OS is trusted: a compromised device can
+changes require upgrade testing. The optional Claude writer calls the Anthropic Messages API from
+the companion with the user's own key (OS vault or `ANTHROPIC_API_KEY`), offers no tools, and
+uses structured JSON output; the key never reaches ResumeForge, Tectonic, or Codex. Version 2
+documents are accepted only when every number appears in the user's sources or the posting. The local companion/OS is trusted: a compromised device can
 access its user's snapshots and submit results. Structural provenance is not cryptographic
 proof of a model's honesty.

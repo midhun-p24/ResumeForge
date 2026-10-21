@@ -19,7 +19,7 @@ No public user's tasks run through the owner's computer or Codex account.
 The companion is a public, allowlisted runtime download; private GitHub access is unnecessary:
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.4.0.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.0.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup
@@ -28,10 +28,12 @@ resumeforge pair
 resumeforge run
 ```
 
-Requires Node 22.14+, Tectonic 0.17+, an OS credential vault, and permitted Codex ChatGPT
-sign-in. Keep the companion running. Codex/plan limits apply; no paid API fallback is used.
-Local execution does not mean offline AI: task content is processed by the AI service.
-Only Codex is supported. Other agents are unavailable.
+Requires Node 22.14+, Tectonic 0.17+, an OS credential vault, and either a permitted Codex
+ChatGPT sign-in or your own Anthropic API key (`resumeforge login --claude`; Claude Opus 5.5 by
+default, billed to your Anthropic account). Switch with `resumeforge provider claude|codex`.
+Keep the companion running. Local execution does not mean offline AI: task content is processed
+by the AI service you choose. Paste your master resume (and optionally portfolio text and a
+reference resume) in Master Profile; every resume is written only from those sources.
 
 ## Develop in the existing repository
 

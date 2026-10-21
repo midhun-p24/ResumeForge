@@ -62,19 +62,19 @@ export default function CompanionGuide() {
           <pre>
             <code>
               npm install --global
-              https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.4.0.tgz
+              https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.0.tgz
             </code>
           </pre>
           <div className="button-row">
             <a
               className="button secondary"
-              href="/downloads/resumeforge-companion-0.4.0.tgz"
+              href="/downloads/resumeforge-companion-0.5.0.tgz"
               download
             >
               <ArrowDownToLine size={16} />
               Download package
             </a>
-            <a className="text-button" href="/downloads/resumeforge-companion-0.4.0.tgz.sha256">
+            <a className="text-button" href="/downloads/resumeforge-companion-0.5.0.tgz.sha256">
               SHA-256 checksum
             </a>
           </div>
@@ -85,15 +85,24 @@ export default function CompanionGuide() {
           </p>
         </section>
         <section className="panel">
-          <h2>3. Sign in to your own Codex</h2>
+          <h2>3. Choose your writer: Codex or Claude</h2>
           <pre>
-            <code>{'resumeforge login\nresumeforge doctor\nresumeforge warmup'}</code>
+            <code>
+              {
+                '# Option A: your own ChatGPT Codex sign-in\nresumeforge login\n\n# Option B: your own Anthropic API key (Claude Opus 5.5 by default)\nresumeforge login --claude\n\nresumeforge doctor\nresumeforge warmup'
+              }
+            </code>
           </pre>
           <p>
-            The login command opens Codex’s supported local sign-in flow. Use your own ChatGPT
-            account. Existing compatible local Codex sign-in can be reused. ResumeForge accepts
-            ChatGPT sign-in; it does not switch to a separately billed API key. Access depends on
-            your plan and workspace policy. See{' '}
+            <code>resumeforge login --claude</code> stores your Anthropic API key in your OS
+            credential vault and selects Claude; the key never leaves your computer except to call
+            Anthropic, and usage is billed to your Anthropic account (a tailoring is typically a few
+            model calls). Switch any time with <code>resumeforge provider claude</code> or{' '}
+            <code>resumeforge provider codex</code>, optionally with <code>--model</code>.
+          </p>
+          <p>
+            The plain login command opens Codex’s supported local sign-in flow with your own ChatGPT
+            account. Codex access depends on your plan and workspace policy. See{' '}
             <a href="https://learn.chatgpt.com/docs/auth" target="_blank" rel="noreferrer">
               official OpenAI authentication guidance
             </a>

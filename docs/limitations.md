@@ -2,8 +2,9 @@
 
 - Public production is deployed at resume-forge.midoon.dev with private individual accounts.
   The private repository and protected development previews remain separate from public access.
-- Only Codex through each user's local companion is supported. No other agent, shared owner
-  account, hosted worker, or automatic application submission exists. Windows installation is
+- Writing runs only in each user's local companion, with their own Codex sign-in or their own
+  Anthropic API key. No shared owner account, hosted worker, or automatic application submission
+  exists. The Claude writer has not yet been exercised end to end against production. Windows installation is
   verified; macOS/Linux prerequisites and OS-vault behavior need testing on those platforms.
 - Real Codex was used for an operator-controlled synthetic account. The second independent
   synthetic account's full queue/revision/PDF protocol uses labeled fixture output to avoid
