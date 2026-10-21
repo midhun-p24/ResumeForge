@@ -98,4 +98,9 @@ it('uses compact contact labels, location first, and Simplify-style margins', ()
   expect(tex).toContain('\\addtolength{\\oddsidemargin}{-0.05in}');
   expect(tex).toContain('\\addtolength{\\textheight}{0.2in}');
   expect(tex).toContain('\\resumeItemListStart}{\\begin{itemize}[itemsep=0pt]}');
+  // No breakable space before \vspace, so a bullet that fills its line leaves no empty line.
+  expect(tex).toContain('\\renewcommand{\\resumeItem}[1]{\\item\\small{{#1\\vspace{-2pt}}}}');
+  expect(tex.indexOf('\\renewcommand{\\resumeItem}')).toBeGreaterThan(
+    tex.indexOf('\\newcommand{\\resumeItem}'),
+  );
 });

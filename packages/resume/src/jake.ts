@@ -208,6 +208,9 @@ function jakeDocument(profile: Profile, sections: string[]): string {
   \vspace{-6pt}\scshape\raggedright\large
 }{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
 \renewcommand{\resumeItemListStart}{\begin{itemize}[itemsep=0pt]}
+% The original "{#1 \vspace{-2pt}}" leaves a breakable space after the text: a bullet that fills
+% its last line exactly wraps that space onto a new, empty line (a visible blank gap).
+\renewcommand{\resumeItem}[1]{\item\small{{#1\vspace{-2pt}}}}
 ` +
     notices +
     '\n% ResumeForge controlled body; synthetic review or user-approved facts only.\n' +

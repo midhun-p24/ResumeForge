@@ -1,5 +1,14 @@
 # Companion installation and connection
 
+## 0.5.8: no blank gap after a full bullet line
+
+Jake's `\resumeItem` writes `{#1 \vspace{-2pt}}`. The space before `\vspace` is a legal line
+break, so a bullet whose text exactly fills its last line wrapped that space onto an empty line,
+leaving a blank gap before the next bullet. The renderer now redefines `\resumeItem` after the
+unchanged preamble without that space. Verified with stepped-length bullets: every exact-fill
+bullet previously added an empty line and none does now; ordinary pages render identically.
+Writing, fitting and the awards step are unchanged from 0.5.7.
+
 ## 0.5.7: awards added after writing
 
 Writing, page fitting and polishing are exactly as in 0.5.3 (0.5.4-0.5.6 were rolled back).
@@ -146,7 +155,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.7.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.8.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup
