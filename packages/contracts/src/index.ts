@@ -261,7 +261,7 @@ export const taskInputSchema = z
       ctx.addIssue({ code: 'custom', message: 'Record tasks need a record-based prior resume' });
   });
 export type TaskInput = z.infer<typeof taskInputSchema>;
-export const COMPANION_VERSION = '0.5.1';
+export const COMPANION_VERSION = '0.5.2';
 export const DOC_V2_CAPABILITY = 'tailor_doc_v2';
 export const importTaskSchema = z.object({
   schemaVersion: z.literal(1),

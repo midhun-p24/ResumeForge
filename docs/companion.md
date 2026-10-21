@@ -1,5 +1,17 @@
 # Companion installation and connection
 
+## 0.5.2: deterministic page fitting, targeted polish
+
+Live runs showed models overshooting in both directions when asked to fix fill (27 lines over,
+then 81% full), exhausting the turn budget. The model now drafts generously, with entries and
+bullets ordered by importance, and the companion fits the page itself: it binary-searches the
+fewest least-important lines to remove (deepest bullets of the latest entries first, every entry
+keeps one bullet, one entry stays per section), typically in about five compiles. Remaining model
+calls only polish the fitted page: named short last lines, wrapped skills rows, heading
+collisions, posting keywords present in the sources but absent from the resume, missing bold, or
+a page under 93% full (where overshooting is safe because trimming follows). A worse polish never
+replaces the best page. Keyword coverage shown in the app is recomputed from the final text.
+
 ## 0.5.1: heading collisions, stricter rules, turn log
 
 The layout check now detects entry headings that run into their right-aligned date (or past the
@@ -114,7 +126,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.1.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.2.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup

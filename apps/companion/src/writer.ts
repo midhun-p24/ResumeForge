@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  docSourceText,
   generationDocSchema,
   parseGeneratedDoc,
   unsourcedHeadings,
@@ -57,10 +58,12 @@ half-line bullets waste space. Never leave one to three words alone on a final l
 row, category included, must fit on one line (about 100 characters).
 Headings share one printed line with their date. Keep the heading plus project stack under about
 75 characters and the heading plus date of a role under about 85 characters, or the heading runs
-into the date. To make room: shorten wording first, then cut
-lower-priority bullets, then cut whole lower-priority entries. Fonts and margins are fixed.
-After you answer, the resume is compiled and you will be told exactly what overflowed, how much
-space is left, and which lines wrapped badly; fix precisely those things.
+into the date. Fonts and margins are fixed.
+FITTING: the companion fits the page for you by compiling and removing your least important
+bullets. So for the first draft write MORE than fits: about a third more bullets than one page
+holds, every entry with three or four bullets, entries ordered by relevance and each entry's
+bullets ordered from most to least important. Later you may be asked to polish specific lines;
+then edit only what is named and keep the same entries and number of bullets.
 
 FIELDS
 Do not include the candidate's name or contact details; they are added automatically.
@@ -127,35 +130,16 @@ type Candidate<T> = { doc: ResumeDoc; compiled: T };
 export const TARGET_FILL = 0.93;
 const USABLE_LINES = (792 - 57.6) / 12.1;
 
-/** Concrete compile feedback, worded the way a careful editor would say it. */
-export function layoutFeedback(measured: Measured, doc?: ResumeDoc): string[] {
-  const feedback: string[] = [];
-  // Entries with room for another sourced bullet, most relevant (earliest) first.
-  const thin = (doc?.sections ?? [])
-    .filter((s) => s.kind === 'entries')
-    .flatMap((s) => s.entries.filter((e) => e.bullets.length < 3).map((e) => e.heading))
-    .slice(0, 4);
-  if (measured.render.pageCount > 1)
-    feedback.push(
-      `The compiled resume runs onto a second page by about ${Math.max(1, measured.overflowLines)} printed lines. Shorten wording first, then cut the lowest-priority bullets, then lower-priority entries until it fits one page.`,
-    );
-  else if (measured.pageFill < TARGET_FILL)
-    feedback.push(
-      `The page is only ${Math.round(measured.pageFill * 100)}% full; about ${Math.round((1 - measured.pageFill) * USABLE_LINES)} printed lines are empty at the bottom. Fill it: lengthen half-line bullets into full lines with sourced specifics${thin.length ? `, add sourced bullets to ${thin.map((h) => `"${h}"`).join(', ')}` : ''}, and add the next most relevant role or project from the sources.`,
-    );
-  if (measured.shortBullets.length)
-    feedback.push(
-      `These bullets end with only one to three words on their last line: ${measured.shortBullets.map((b) => `"${b}"`).join('; ')}. Tighten each to one full line or extend it with sourced detail to fill two lines.`,
-    );
-  if (measured.wrappedSkills.length)
-    feedback.push(
-      `These skills rows wrap onto a second line: ${measured.wrappedSkills.join(', ')}. Shorten each to fit one line, keeping the posting's keywords.`,
-    );
-  if (measured.headingCollisions.length)
-    feedback.push(
-      `These headings run into their date on the same line: ${measured.headingCollisions.map((h) => `"${h}"`).join(', ')}. Keep only the plain name in the heading, move status or team notes into a bullet, and shorten the project stack to three or four technologies.`,
-    );
-  return feedback;
+/** One log line per compiled attempt, so a weak result can be explained afterwards. */
+export function describeMeasured(m: Measured): string {
+  return [
+    m.render.pageCount > 1
+      ? `${m.render.pageCount} pages (+${m.overflowLines} lines)`
+      : `1 page, ${Math.round(m.pageFill * 100)}% full`,
+    `${m.shortBullets.length} short last lines`,
+    `${m.wrappedSkills.length} wrapped skills rows`,
+    `${m.headingCollisions.length} heading collisions`,
+  ].join(', ');
 }
 
 const onePage = (m: Measured) => m.render.pageCount === 1;
@@ -165,40 +149,111 @@ const quality = (m: Measured) =>
   4 * (m.shortBullets.length + m.wrappedSkills.length) -
   10 * m.headingCollisions.length;
 
-/** One log line per compiled attempt, so a weak result can be explained afterwards. */
-export function describeMeasured(m: Measured): string {
-  const parts = [
-    m.render.pageCount > 1
-      ? `${m.render.pageCount} pages (+${m.overflowLines} lines)`
-      : `1 page, ${Math.round(m.pageFill * 100)}% full`,
-    `${m.shortBullets.length} short last lines`,
-    `${m.wrappedSkills.length} wrapped skills rows`,
-    `${m.headingCollisions.length} heading collisions`,
-  ];
-  return parts.join(', ');
+type Removal = { si: number; ei: number; bi?: number };
+/**
+ * Removals from least to most important: the deepest bullet of the latest entry first, keeping
+ * every entry's first bullet; then whole entries from the end, keeping one entry per section.
+ */
+export function removalOrder(doc: ResumeDoc): Removal[] {
+  const entries = doc.sections
+    .flatMap((s, si) => (s.kind === 'entries' ? s.entries.map((e, ei) => ({ si, ei, e })) : []))
+    .reverse();
+  const steps: Removal[] = [];
+  const deepest = Math.max(0, ...entries.map(({ e }) => e.bullets.length));
+  for (let bi = deepest - 1; bi >= 1; bi--)
+    for (const { si, ei, e } of entries) if (e.bullets.length > bi) steps.push({ si, ei, bi });
+  for (const { si, ei } of entries) if (ei > 0) steps.push({ si, ei });
+  return steps;
+}
+/** The document with its `count` least important lines removed. */
+export function trimTo(doc: ResumeDoc, count: number): ResumeDoc {
+  const steps = removalOrder(doc).slice(0, count);
+  const next = structuredClone(doc);
+  next.sections = next.sections.map((s, si) => ({
+    ...s,
+    entries: s.entries
+      .map((e, ei) => ({
+        ...e,
+        bullets: e.bullets.filter(
+          (_, bi) => !steps.some((r) => r.si === si && r.ei === ei && r.bi === bi),
+        ),
+      }))
+      .filter((_, ei) => !steps.some((r) => r.si === si && r.ei === ei && r.bi === undefined)),
+  }));
+  return next;
+}
+/** Binary-search the fewest removals that fit one page, so the page ends up as full as it can be. */
+export async function fitByTrimming<T extends Measured>(
+  doc: ResumeDoc,
+  compile: (doc: ResumeDoc) => Promise<T>,
+): Promise<(Candidate<T> & { removed: number }) | null> {
+  let lo = 1,
+    hi = removalOrder(doc).length,
+    found: (Candidate<T> & { removed: number }) | null = null;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const candidate = trimTo(doc, mid);
+    const compiled = await compile(candidate);
+    if (onePage(compiled)) {
+      found = { doc: candidate, compiled, removed: mid };
+      hi = mid - 1;
+    } else lo = mid + 1;
+  }
+  return found;
 }
 
-/** Last resort when no turn fit one page: drop the lowest bullets, then the lowest entries. */
-export function trimDoc(doc: ResumeDoc): ResumeDoc | null {
-  const next = structuredClone(doc);
-  const entrySections = next.sections.filter((s) => s.kind === 'entries').reverse();
-  for (const section of entrySections)
-    for (const entry of [...section.entries].reverse())
-      if (entry.bullets.length > 1) {
-        entry.bullets.pop();
-        return next;
-      }
-  for (const section of entrySections)
-    if (section.entries.length > 1) {
-      section.entries.pop();
-      return next;
-    }
-  return null;
+const resumeText = (doc: ResumeDoc) =>
+  doc.sections
+    .flatMap((s) => [
+      ...s.skills.flatMap((k) => [k.category, k.items]),
+      ...s.entries.flatMap((e) => [e.heading, e.subheading, e.stack, ...e.bullets]),
+    ])
+    .join('\n')
+    .toLowerCase();
+/** Posting keywords the sources support but the resume never mentions. */
+export function missingSourcedKeywords(input: TaskInput, doc: ResumeDoc): string[] {
+  const resume = resumeText(doc);
+  const sources = docSourceText(input).toLowerCase();
+  return doc.keywords
+    .map((k) => k.keyword)
+    .filter((k) => !resume.includes(k.toLowerCase()) && sources.includes(k.toLowerCase()));
+}
+
+/** Concrete, line-level fixes for a fitted page, worded the way a careful editor would say it. */
+export function polishFeedback(input: TaskInput, measured: Measured, doc: ResumeDoc): string[] {
+  const feedback: string[] = [];
+  if (onePage(measured) && measured.pageFill < TARGET_FILL)
+    feedback.push(
+      `The page is only ${Math.round(measured.pageFill * 100)}% full; about ${Math.round((1 - measured.pageFill) * USABLE_LINES)} printed lines are empty. Add more sourced bullets to the most relevant entries and the next most relevant role or project. Overshooting is fine: the least important lines are trimmed automatically.`,
+    );
+  if (measured.shortBullets.length)
+    feedback.push(
+      `These bullets end with only one to three words on their last line: ${measured.shortBullets.map((b) => `"${b}"`).join('; ')}. Rewrite each to end on a full line: tighten it to one full line or extend it with sourced detail to two full lines.`,
+    );
+  if (measured.wrappedSkills.length)
+    feedback.push(
+      `These skills rows wrap onto a second line: ${measured.wrappedSkills.join(', ')}. Shorten each to fit one line, keeping the posting's keywords.`,
+    );
+  if (measured.headingCollisions.length)
+    feedback.push(
+      `These headings run into their date on the same line: ${measured.headingCollisions.map((h) => `"${h}"`).join(', ')}. Keep only the plain name in the heading, move status or team notes into a bullet, and shorten the project stack to three or four technologies.`,
+    );
+  const missing = missingSourcedKeywords(input, doc);
+  if (missing.length)
+    feedback.push(
+      `These posting keywords appear in the sources but nowhere in the resume: ${missing.join(', ')}. Work each into the skills rows or a relevant bullet.`,
+    );
+  const bullets = doc.sections.flatMap((s) => s.entries.flatMap((e) => e.bullets));
+  if (bullets.length && !bullets.some((b) => b.includes('**')))
+    feedback.push(
+      'No bullet uses bold. Bold one or two key metrics or achievements with **double asterisks** in the strongest bullets.',
+    );
+  return feedback;
 }
 
 /**
- * Draft, compile, measure and revise in one conversation, like an editor working the page.
- * At most `maxTurns` model calls; the best one-page candidate wins.
+ * Draft generously, fit the page deterministically by trimming the least important lines, then
+ * spend the remaining model calls polishing the specific lines the layout check names.
  */
 export async function writeResume<T extends Measured>(
   input: TaskInput,
@@ -213,7 +268,7 @@ export async function writeResume<T extends Measured>(
   let last: Candidate<T> | null = null;
   let lastDoc: ResumeDoc | null = null;
   let diagnostics: string[] = [];
-  for (let turn = 0; turn < maxTurns; turn++) {
+  for (let turn = 1; turn <= maxTurns; turn++) {
     await onStage('Writing resume');
     const raw = await session.send(prompt);
     let doc: ResumeDoc;
@@ -224,40 +279,50 @@ export async function writeResume<T extends Measured>(
         error instanceof z.ZodError
           ? error.issues.slice(0, 8).map((i) => `${i.path.join('.')}: ${i.message}`)
           : ['output: invalid'];
-      log(`Turn ${turn + 1}: schema mismatch (${diagnostics.slice(0, 3).join('; ')})`);
+      log(`Turn ${turn}: schema mismatch (${diagnostics.slice(0, 3).join('; ')})`);
       prompt = `Your answer did not match the schema: ${diagnostics.join('; ')}. Return the complete corrected JSON.`;
       continue;
     }
     lastDoc = doc;
     diagnostics = validateDoc(input, doc);
     if (diagnostics.length) {
-      log(`Turn ${turn + 1}: rejected before compiling (${diagnostics.join(' ').slice(0, 200)})`);
+      log(`Turn ${turn}: rejected before compiling (${diagnostics.join(' ').slice(0, 200)})`);
       prompt = `Fix these problems and return the complete corrected JSON: ${diagnostics.join(' ')}`;
       continue;
     }
-    const compiled = await compile(doc);
+    let compiled = await compile(doc);
+    log(`Turn ${turn}: ${describeMeasured(compiled)}`);
+    if (!onePage(compiled)) {
+      const fitted = await fitByTrimming(doc, compile);
+      if (fitted) {
+        ({ doc, compiled } = fitted);
+        log(
+          `Turn ${turn}: fitted by removing ${fitted.removed} least important lines: ${describeMeasured(compiled)}`,
+        );
+      }
+    }
     last = { doc, compiled };
     if (onePage(compiled) && (!best || quality(compiled) > quality(best.compiled))) best = last;
-    log(`Turn ${turn + 1}: ${describeMeasured(compiled)}`);
-    const feedback = layoutFeedback(compiled, doc);
-    if (!feedback.length) break;
-    if (turn === maxTurns - 1) break;
-    prompt = `${feedback.join('\n')}\nKeep every fact sourced. Return the complete revised JSON.`;
+    // Always polish the best page so far; a worse revision never replaces it.
+    const base = best ?? last;
+    const feedback = polishFeedback(input, base.compiled, base.doc);
+    if (!feedback.length || turn === maxTurns) break;
+    prompt = `${feedback.join('\n')}\nApply only these changes to the current resume below and return the complete JSON. Keep every fact sourced.\n${block('current_resume_json', JSON.stringify(base.doc))}`;
   }
-  let chosen = best ?? last;
+  const chosen = best ?? last;
   if (!chosen) throw new AgentFailure('INVALID_OUTPUT', lastDoc, undefined, diagnostics);
-  for (let trims = 0; !onePage(chosen.compiled) && trims < 16; trims++) {
-    const doc = trimDoc(chosen.doc);
-    if (!doc) break;
-    chosen = { doc, compiled: await compile(doc) };
-    log(`Trim ${trims + 1}: ${describeMeasured(chosen.compiled)}`);
-  }
-  log(`Chosen: ${describeMeasured(chosen.compiled)}`);
+  // Report keyword coverage from the final text rather than the model's own claim.
+  const text = resumeText(chosen.doc);
+  chosen.doc.keywords = chosen.doc.keywords.map((k) => ({
+    ...k,
+    covered: text.includes(k.keyword.toLowerCase()),
+  }));
   const unsourced = unsourcedHeadings(input, chosen.doc);
   if (unsourced.length)
     chosen.doc.notes = [
       ...chosen.doc.notes,
       ...unsourced.map((h) => `Check "${h}": its wording was not found in your sources.`),
     ].slice(0, 20);
+  log(`Chosen: ${describeMeasured(chosen.compiled)}`);
   return chosen;
 }
