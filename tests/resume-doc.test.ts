@@ -130,3 +130,24 @@ describe('page layout measurement', () => {
     expect(wrappedSkillRows(items, ['Languages', 'Frameworks'])).toEqual(['Languages']);
   });
 });
+
+it('warms up with a resume that uses every template feature', async () => {
+  const { warmupDocument } = await import('../apps/companion/src/warmup');
+  const { profile, doc } = warmupDocument();
+  expect(docStructureIssues(doc)).toEqual([]);
+  expect(new Set(doc.sections.map((s) => s.kind))).toEqual(
+    new Set(['education', 'skills', 'entries']),
+  );
+  const tex = renderLatex(profile, doc);
+  // Contact separators, italic organization lines, project stacks, bold and escaped symbols.
+  for (const piece of [
+    '$|$',
+    '\\resumeSubheading{Research Assistant}',
+    '\\emph{',
+    '\\textbf{',
+    '\\&',
+    '\\%',
+    '\\#',
+  ])
+    expect(tex).toContain(piece);
+});

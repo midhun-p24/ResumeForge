@@ -12,7 +12,7 @@ import {
   progressStages,
   versionOutputSchema,
 } from '@resumeforge/contracts';
-import type { Profile, ResumeDoc, VersionOutput } from '@resumeforge/contracts';
+import type { VersionOutput } from '@resumeforge/contracts';
 import { AgentFailure, CodexAdapter, codexCommand } from './adapter';
 import { compileResume, tectonicPath } from './render';
 import { execFile, localEnvironment } from './process';
@@ -26,6 +26,7 @@ import {
   saveSettings,
 } from './providers';
 import { writeResume, WRITER_RULES, writerSchema } from './writer';
+import { warmupDocument } from './warmup';
 import { spawn } from 'node:child_process';
 
 const args = process.argv.slice(2),
@@ -359,44 +360,7 @@ async function warmup() {
   await mkdir(root, { recursive: true, mode: 0o700 });
   const dir = await mkdtemp(join(root, 'warmup-'));
   try {
-    const profile: Profile = {
-      contact: {
-        name: 'Synthetic compiler check',
-        email: 'test@example.invalid',
-        phone: '',
-        location: '',
-        links: [],
-      },
-      records: [],
-      masterText: '',
-      portfolioText: '',
-      referenceResume: '',
-      preferences: { roles: [], includeGpa: false, instructions: '' },
-    };
-    const output: ResumeDoc = {
-      schemaVersion: 2,
-      sections: [
-        {
-          title: 'Projects',
-          kind: 'entries',
-          entries: [
-            {
-              heading: 'Compiler check',
-              subheading: '',
-              date: '2026',
-              location: '',
-              stack: 'LaTeX',
-              bullets: ['Warmed the **fixed** template packages and fonts.'],
-            },
-          ],
-          skills: [],
-        },
-      ],
-      coverLetter: '',
-      keywords: [],
-      gaps: [],
-      notes: [],
-    };
+    const { profile, doc: output } = warmupDocument();
     await compileResume(
       profile,
       output,

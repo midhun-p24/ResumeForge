@@ -1,5 +1,15 @@
 # Companion installation and connection
 
+## 0.5.11: warmup covers every template font
+
+Tectonic downloads a separate file for each font size and shape. The old warmup compiled a tiny
+one-project page, so on a fresh machine real resumes (contact separators, italic organization
+lines, skills rows, education) failed offline with "xdvipdfmx had an unrecoverable error" or a
+missing input file. `resumeforge warmup` now compiles a synthetic resume that uses every part of
+the template (`apps/companion/src/warmup.ts`). Verified from an empty Tectonic cache: after the
+new warmup, a full resume and a real tailored resume both compile with `--only-cached`.
+Existing users who already ran warmup should run it once more after updating.
+
 ## 0.5.10: trimming keeps depth on the top entries
 
 When a draft is too long, the fitter now removes, in order: bullets beyond the third on any entry;
@@ -181,7 +191,7 @@ Requirements: Node 22.14+, Tectonic 0.17+, and Windows Credential Manager, macOS
 or Linux Secret Service. Windows installation is verified; other platforms need their own check.
 
 ```powershell
-npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.10.tgz
+npm install --global https://resume-forge.midoon.dev/downloads/resumeforge-companion-0.5.11.tgz
 resumeforge login
 resumeforge doctor
 resumeforge warmup
